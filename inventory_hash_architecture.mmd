@@ -1,0 +1,89 @@
+%% Inventory-Hash-Based Invalidation Architecture
+%% High-Level System Diagram
+
+graph TB
+    subgraph Client["Client Application (Frontend)"]
+        A[User Uploads Images]
+        B[Include Inventory List<br/>Optional]
+    end
+
+    subgraph Server["Node.js Server (Backend)"]
+        C["/parse Endpoint"]
+        D{Inventory<br/>Provided?}
+        E[Generate Inventory Hash<br/>SHA-256 → 16 chars]
+        F[Generate Cache Key<br/>file_hash + inv_hash]
+        G[Simple Cache Key<br/>file_hash only]
+        H{Check Cache}
+        I[Validate Inventory Hash]
+        J{Hash<br/>Match?}
+        K[Return Cached Result<br/>cached: true]
+        L[Invalidate Cache Entry]
+        M[Process Images<br/>OCR + LLM]
+        N[Store in Cache<br/>with inv_hash + TTL]
+        O[Return Fresh Result<br/>cached: false]
+    end
+
+    subgraph Cache["In-Memory Cache (node-cache)"]
+        P[(Cache Store)]
+        Q[Cache Entry:<br/>data + inventory_hash<br/>+ cached_at + ttl]
+    end
+
+    subgraph External["External Services"]
+        R[Google Cloud Vision<br/>OCR]
+        S[Anthropic Claude<br/>LLM]
+    end
+
+    subgraph Metrics["Monitoring & Metrics"]
+        T[Cache Hits]
+        U[Cache Misses]
+        V[Invalidations]
+        W[Inventory Updates]
+    end
+
+    %% Flow: Request with Inventory
+    A --> C
+    B --> C
+    C --> D
+    D -->|Yes| E
+    E --> F
+    F --> H
+    
+    %% Flow: Request without Inventory
+    D -->|No| G
+    G --> H
+    
+    %% Flow: Cache Hit Path
+    H -->|Found| I
+    I --> J
+    J -->|Yes| K
+    K --> T
+    
+    %% Flow: Cache Invalidation Path
+    J -->|No| L
+    L --> M
+    L --> V
+    
+    %% Flow: Cache Miss Path
+    H -->|Not Found| M
+    M --> U
+    
+    %% Flow: Processing
+    M --> R
+    M --> S
+    R --> M
+    S --> M
+    M --> N
+    N --> P
+    N --> O
+    
+    %% Cache Storage
+    P --> Q
+    Q --> I
+
+    style A fill:#e1f5ff
+    style B fill:#e1f5ff
+    style K fill:#c8e6c9
+    style O fill:#fff9c4
+    style L fill:#ffcdd2
+    style E fill:#b39ddb
+    style I fill:#b39ddb

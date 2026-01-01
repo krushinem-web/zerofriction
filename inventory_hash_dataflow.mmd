@@ -1,0 +1,76 @@
+%% Detailed Data Flow: Inventory-Hash-Based Cache Invalidation
+
+sequenceDiagram
+    participant C as Client
+    participant E as /parse Endpoint
+    participant H as Hash Generator
+    participant V as Cache Validator
+    participant M as Cache Manager
+    participant P as OCR/LLM Processor
+    participant X as External APIs
+
+    Note over C,X: Scenario 1: Cache HIT with Valid Inventory
+
+    C->>E: POST /parse<br/>images + inventory
+    E->>H: generateInventoryHash(inventory)
+    H-->>E: inv_hash: "a1b2c3d4e5f6g7h8"
+    E->>H: generateCacheKey(files, inv_hash)
+    H-->>E: cache_key: "ocr_xyz...inv_a1b2..."
+    E->>M: getCached(cache_key)
+    M-->>E: cache_entry {data, inv_hash, cached_at}
+    E->>V: validateInventoryHash(entry, current_hash)
+    V-->>E: VALID ✓
+    E-->>C: 200 OK<br/>{...result, cached: true}
+
+    Note over C,X: Scenario 2: Cache INVALIDATED (Inventory Changed)
+
+    C->>E: POST /parse<br/>images + NEW inventory
+    E->>H: generateInventoryHash(new_inventory)
+    H-->>E: new_inv_hash: "x9y8z7w6v5u4t3s2"
+    E->>H: generateCacheKey(files, new_inv_hash)
+    H-->>E: cache_key: "ocr_xyz...inv_x9y8..."
+    E->>M: getCached(cache_key)
+    M-->>E: cache_entry {data, inv_hash: "a1b2..."}
+    E->>V: validateInventoryHash(entry, new_hash)
+    V-->>V: Compare: "a1b2..." ≠ "x9y8..."
+    V-->>E: INVALID ✗
+    E->>M: invalidateCache(cache_key)
+    M-->>E: Cache entry deleted
+    E->>P: processImages(files)
+    P->>X: Google Vision OCR
+    X-->>P: ocr_text
+    P->>X: Anthropic Claude LLM
+    X-->>P: parsed_result
+    P-->>E: {extracted, unmapped}
+    E->>M: setCachedWithHash(key, result, new_inv_hash, ttl)
+    M-->>E: Cached successfully
+    E-->>C: 200 OK<br/>{...result, cached: false}
+
+    Note over C,X: Scenario 3: Cache MISS (First Request)
+
+    C->>E: POST /parse<br/>images + inventory
+    E->>H: generateInventoryHash(inventory)
+    H-->>E: inv_hash: "p0o9i8u7y6t5r4e3"
+    E->>H: generateCacheKey(files, inv_hash)
+    H-->>E: cache_key: "ocr_abc...inv_p0o9..."
+    E->>M: getCached(cache_key)
+    M-->>E: null (not found)
+    E->>P: processImages(files)
+    P->>X: Google Vision OCR
+    X-->>P: ocr_text
+    P->>X: Anthropic Claude LLM
+    X-->>P: parsed_result
+    P-->>E: {extracted, unmapped}
+    E->>M: setCachedWithHash(key, result, inv_hash, ttl)
+    M-->>E: Cached successfully
+    E-->>C: 200 OK<br/>{...result, cached: false}
+
+    Note over C,X: Scenario 4: No Inventory Provided (Fallback)
+
+    C->>E: POST /parse<br/>images only (no inventory)
+    E->>H: generateSimpleCacheKey(files)
+    H-->>E: cache_key: "ocr_def456..."
+    E->>M: getCached(cache_key)
+    M-->>E: cache_entry {data}
+    Note over E,M: No inventory validation
+    E-->>C: 200 OK<br/>{...result, cached: true}
