@@ -568,15 +568,9 @@
         </div>
         
         <!-- Header -->
-        <div class="text-center mb-4 relative" style="background: transparent !important;">
-            <img src="logo.png" alt="KrushFlow" class="mx-auto mb-1" style="width: 100%; max-width: 600px; height: auto; object-fit: contain;">
+        <div class="text-center mb-6" style="background: transparent !important;">
+            <img src="logo.png" alt="KrushFlow" class="mx-auto mb-2" style="width: 100%; max-width: 600px; height: auto; object-fit: contain;">
             <p class="text-zinc-400 text-lg font-light" style="font-weight: 300; margin-bottom: 0;">Intelligent inventory management</p>
-            <!-- Feedback Button -->
-            <button onclick="openFeedbackModal()" class="absolute top-0 right-0 p-2 text-zinc-400 hover:text-orange-400 transition-colors" title="Send Feedback">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path>
-                </svg>
-            </button>
         </div>
 
         <!-- Mode Selection Screen -->
@@ -959,7 +953,6 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                     </svg>
                     Daily Count Active
-                    <span id="apiStatusIndicator" class="w-3 h-3 rounded-full bg-green-500 transition-colors duration-300" title="API Status: Ready"></span>
                 </h2>
 
                 <!-- Progress Bar -->
@@ -1000,14 +993,19 @@
                         </svg>
                         Download
                     </button>
-                    <button id="importExcelButton" onclick="openExcelImportModal()" class="btn btn-glass">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                        </svg>
-                        Import Excel
-                    </button>
                 </div>
 
+                <!-- Last Command Display -->
+                <div id="lastCommandDisplay" class="hidden">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="text-sm text-zinc-400">Last command:</div>
+                        <button id="resolveNowButton" onclick="openUnmappedResolution()" class="hidden px-3 py-1 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 rounded-lg text-xs font-semibold transition-colors">
+                            Resolve Now
+                        </button>
+                    </div>
+                    <div class="font-semibold text-orange-300" id="lastCommandText"></div>
+                    <div class="text-sm text-zinc-400 mt-2" id="lastCommandResult"></div>
+                </div>
 
                 <!-- Scrollable Inventory List with Counts -->
                 <div class="list-container mb-6 max-h-96 overflow-y-auto">
@@ -1038,63 +1036,6 @@
             </div>
         </div>
 
-        <!-- Excel Import Modal -->
-        <div id="excelImportModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-            <div class="glass-card max-w-md w-full">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-2xl font-bold">Import Excel</h3>
-                    <button onclick="closeExcelImportModal()" class="text-zinc-400 hover:text-white transition-colors text-2xl leading-none">×</button>
-                </div>
-                <p class="text-zinc-400 mb-4">Upload an Excel file to import counts. Only counts will be imported; master list cannot be edited.</p>
-                
-                <input type="file" id="excelFileInput" accept=".xlsx,.xls" class="hidden" onchange="handleExcelFile(event)">
-                <button onclick="document.getElementById('excelFileInput').click()" class="btn btn-primary w-full mb-4">
-                    <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                    </svg>
-                    Choose Excel File
-                </button>
-                
-                <div id="excelColumnSelector" class="hidden">
-                    <p class="text-zinc-400 text-sm mb-3">Select which columns contain your data:</p>
-                    <div class="space-y-3">
-                        <div>
-                            <label class="text-zinc-300 text-sm block mb-1">Item Name Column:</label>
-                            <select id="itemColumnSelect" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2 text-white focus:border-orange-500 focus:outline-none">
-                            </select>
-                        </div>
-                        <div>
-                            <label class="text-zinc-300 text-sm block mb-1">Count Column:</label>
-                            <select id="countColumnSelect" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2 text-white focus:border-orange-500 focus:outline-none">
-                            </select>
-                        </div>
-                    </div>
-                    <div class="flex gap-3 mt-4">
-                        <button onclick="processExcelImport()" class="btn btn-primary flex-1">Import Counts</button>
-                        <button onclick="closeExcelImportModal()" class="btn btn-glass">Cancel</button>
-                    </div>
-                </div>
-                
-                <div id="excelImportStatus" class="hidden mt-3 p-3 rounded-lg text-sm"></div>
-            </div>
-        </div>
-
-        <!-- Feedback Modal -->
-        <div id="feedbackModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-            <div class="glass-card max-w-md w-full">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-2xl font-bold">Send Feedback</h3>
-                    <button onclick="closeFeedbackModal()" class="text-zinc-400 hover:text-white transition-colors text-2xl leading-none">×</button>
-                </div>
-                <p class="text-zinc-400 mb-4">Help us improve KrushFlow! Share your thoughts, report issues, or suggest features.</p>
-                <textarea id="feedbackText" class="w-full h-32 bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-white focus:border-orange-500 focus:outline-none resize-none" placeholder="Your feedback..."></textarea>
-                <div class="flex gap-3 mt-4">
-                    <button onclick="submitFeedback()" class="btn btn-primary flex-1">Send Feedback</button>
-                    <button onclick="closeFeedbackModal()" class="btn btn-glass">Cancel</button>
-                </div>
-                <div id="feedbackStatus" class="hidden mt-3 p-3 rounded-lg text-sm"></div>
-            </div>
-        </div>
 
     </div>
 
@@ -2641,7 +2582,13 @@
         // Voice recording for Daily Count
         document.getElementById('dailyRecordButton').addEventListener('click', toggleDailyRecording);
 
-        // clearLastCommand removed - no last-command UI
+                // Clear previous command display when starting new recording
+        function clearLastCommand() {
+            document.getElementById('lastCommandText').textContent = '';
+            document.getElementById('lastCommandResult').textContent = '';
+            document.getElementById('lastCommandDisplay').classList.add('hidden');
+            document.getElementById('resolveNowButton').classList.add('hidden');
+        }
 
         async function toggleDailyRecording() {
             if (isDailyRecording) {
@@ -2700,7 +2647,6 @@
 
                 dailyMediaRecorder.start();
                 isDailyRecording = true;
-                enableRecordingLock(); // Prevent navigation while recording
                 
                 // Re-enable button (now shows "Stop")
                 recordButton.disabled = false;
@@ -2745,7 +2691,6 @@
         // Helper function to reset recording state
         function resetDailyRecordingState() {
             isDailyRecording = false;
-            disableRecordingLock(); // Release lock on error/reset
             const recordButton = document.getElementById('dailyRecordButton');
             if (recordButton) {
                 recordButton.disabled = false;
@@ -2762,111 +2707,13 @@
             if (dailyMediaRecorder && dailyMediaRecorder.state !== 'inactive') {
                 dailyMediaRecorder.stop();
                 isDailyRecording = false;
-                disableRecordingLock(); // Release navigation lock
                 document.getElementById('dailyRecordButtonText').textContent = 'Record';
-                // DOM rewrite removed to prevent layout reflow during processing
+                document.getElementById('dailyCountStatus').innerHTML = `
+                    <h4 class="text-xl font-semibold mb-2">Processing command...</h4>
+                    <p class="text-zinc-400">Please wait</p>
+                `;
+                document.getElementById('dailyCountStatus').className = 'bg-zinc-800/50 rounded-xl p-6 mb-6 text-center';
             }
-        }
-
-        let recordingLockEnabled = false;
-
-        function enableRecordingLock() {
-            recordingLockEnabled = true;
-            // Prevent navigation with beforeunload event
-            window.addEventListener('beforeunload', recordingLockHandler);
-        }
-
-        function disableRecordingLock() {
-            recordingLockEnabled = false;
-            window.removeEventListener('beforeunload', recordingLockHandler);
-        }
-
-        function recordingLockHandler(e) {
-            if (recordingLockEnabled) {
-                // Standard way to trigger browser confirmation dialog
-                e.preventDefault();
-                e.returnValue = 'Recording in progress. Stop recording before leaving.';
-                return e.returnValue;
-            }
-        }
-
-        function setAPIStatus(status) {
-            const indicator = document.getElementById('apiStatusIndicator');
-            if (!indicator) return;
-            
-            if (status === 'busy') {
-                indicator.className = 'w-3 h-3 rounded-full bg-red-500 transition-colors duration-300';
-                indicator.title = 'API Status: Processing...';
-            } else {
-                indicator.className = 'w-3 h-3 rounded-full bg-green-500 transition-colors duration-300';
-                indicator.title = 'API Status: Ready';
-            }
-        }
-
-        function attemptLocalMapping(transcription, inventory, aliases) {
-            // Local-first mapping: parse operation + value + item match
-            const lower = transcription.toLowerCase().trim();
-            
-            // Extract action and value
-            let action = 'set'; // default
-            let value = null;
-            let itemPhrase = lower;
-            
-            // Detect operation keywords
-            if (lower.includes('set') || lower.includes('total') || lower.includes('have')) {
-                action = 'set';
-            } else if (lower.includes('add') || lower.includes('plus') || lower.includes('more')) {
-                action = 'add';
-            } else if (lower.includes('subtract') || lower.includes('minus') || lower.includes('less')) {
-                action = 'subtract';
-            } else if (lower.includes('multiply') || lower.includes('times')) {
-                action = 'multiply';
-            } else if (lower.includes('divide') || lower.includes('over')) {
-                action = 'divide';
-            }
-            
-            // Extract numeric value
-            const numberMatch = lower.match(/\b(\d+(\.\d+)?)\b/);
-            if (numberMatch) {
-                value = parseFloat(numberMatch[1]);
-                // Remove the number from item phrase for matching
-                itemPhrase = lower.replace(numberMatch[0], '').trim();
-            }
-            
-            if (value === null) {
-                return { success: false }; // No numeric value found
-            }
-            
-            // Remove operation keywords from item phrase
-            const keywords = ['set', 'add', 'subtract', 'multiply', 'divide', 'plus', 'minus', 'times', 'over', 'total', 'have', 'more', 'less', 'to', 'by'];
-            keywords.forEach(kw => {
-                itemPhrase = itemPhrase.replace(new RegExp('\\b' + kw + '\\b', 'g'), '');
-            });
-            itemPhrase = itemPhrase.trim();
-            
-            // Attempt exact match in inventory
-            const exactMatch = inventory.find(item => item.toLowerCase() === itemPhrase);
-            if (exactMatch) {
-                return { success: true, item: exactMatch, action, value };
-            }
-            
-            // Attempt alias match
-            for (const [canonical, aliasList] of Object.entries(aliases)) {
-                if (aliasList.some(alias => alias.toLowerCase() === itemPhrase)) {
-                    return { success: true, item: canonical, action, value };
-                }
-            }
-            
-            // Attempt partial match (only if unambiguous)
-            const partialMatches = inventory.filter(item => 
-                item.toLowerCase().includes(itemPhrase) || itemPhrase.includes(item.toLowerCase())
-            );
-            if (partialMatches.length === 1) {
-                return { success: true, item: partialMatches[0], action, value };
-            }
-            
-            // No unambiguous match - fall back to LLM
-            return { success: false };
         }
 
         async function processDailyVoiceCommand(audioBlob) {
@@ -2875,21 +2722,18 @@
                 const formData = new FormData();
                 formData.append('audio', audioBlob, 'recording.webm');
 
-                setAPIStatus('busy'); // Red light - API call starting
                 const transcriptRes = await fetch('/process-voice', {
                     method: 'POST',
                     body: formData
                 });
 
                 const transcriptData = await transcriptRes.json();
-                setAPIStatus('ready'); // Green light - STT complete
 
                 if (!transcriptRes.ok) {
-                    throw new Error(transcriptData.details || transcriptData.error || 'Transcription failed');
+                    throw new Error(transcriptData.details || transcriptData.error || 'Voice processing failed');
                 }
 
                 const transcription = transcriptData.transcription.trim();
-                lastTranscriptionAttempt = transcription; // Store for error feedback
 
                 if (!transcription) {
                     showDailyCountError('No speech detected. Please try again.');
@@ -2897,56 +2741,7 @@
                     return;
                 }
 
-                // Step 1.5: Local-first mapping attempt (fast path)
-                const localResult = attemptLocalMapping(transcription, dailyInventory, dailyAliases);
-                if (localResult.success) {
-                    // Unambiguous local match found - apply immediately
-                    const oldCount = inventoryCounts[localResult.item] || 0;
-                    let newCount;
-                    
-                    if (localResult.action === 'set') {
-                        newCount = localResult.value;
-                    } else if (localResult.action === 'add') {
-                        newCount = oldCount + localResult.value;
-                    } else if (localResult.action === 'subtract') {
-                        newCount = oldCount - localResult.value;
-                    } else if (localResult.action === 'multiply') {
-                        newCount = oldCount * localResult.value;
-                    } else if (localResult.action === 'divide') {
-                        if (localResult.value === 0) {
-                            unmappedCommands.push({
-                                raw_text: transcription,
-                                reason: 'divide by zero',
-                                suggested_item: localResult.item,
-                                item_phrase: transcription,
-                                count_value: null
-                            });
-                            renderUnmappedCommands();
-                            resetDailyStatus();
-                            return;
-                        }
-                        newCount = oldCount / localResult.value;
-                    } else {
-                        newCount = localResult.value; // default to set
-                    }
-                    
-                    inventoryCounts[localResult.item] = newCount;
-                    commandHistory.push({
-                        item: localResult.item,
-                        oldCount: oldCount,
-                        newCount: newCount,
-                        action: localResult.action || 'set',
-                        value: localResult.value
-                    });
-                    
-                    renderDailyInventoryList();
-                    updateDailyCountProgress();
-                    resetDailyStatus();
-                    return; // Skip LLM call - local mapping succeeded
-                }
-
                 // Step 2: Interpret command with Claude (MULTI-ITEM endpoint)
-                setAPIStatus('busy'); // Red light - LLM interpret starting
                 const interpretRes = await fetch('/interpret-multi-count', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -2959,7 +2754,6 @@
                 });
 
                 const interpretData = await interpretRes.json();
-                setAPIStatus('ready'); // Green light - interpret complete
 
                 if (!interpretRes.ok) {
                     throw new Error(interpretData.details || interpretData.error || 'Interpretation failed');
@@ -2986,60 +2780,20 @@
                                 newCount = oldCount + value;
                             } else if (itemResult.action === 'subtract') {
                                 newCount = oldCount - value;
-                            } else if (itemResult.action === 'multiply') {
-                                newCount = oldCount * value;
-                            } else if (itemResult.action === 'divide') {
-                                if (value === 0) {
-                                    // Divide by zero - route to unmapped
-                                    unmappedCommands.push({
-                                        raw_text: itemResult.recorded_item || itemResult.item,
-                                        reason: 'divide by zero',
-                                        suggested_item: itemResult.item,
-                                        item_phrase: itemResult.recorded_item || itemResult.item,
-                                        count_value: null
-                                    });
-                                    continue; // Skip this item, don't apply
-                                }
-                                newCount = oldCount / value;
                             } else {
                                 newCount = value; // fallback to set
                             }
                         } else {
-                            // Fallback: try to infer action from transcription
+                            // Fallback: try to infer action from count value
                             const count = itemResult.count || 0;
-                            const lowerTranscription = transcription.toLowerCase();
-                            
                             if (count < 0) {
                                 // Negative = subtract
                                 newCount = oldCount + count; // count is already negative
-                            } else if (lowerTranscription.includes('set') || lowerTranscription.includes('total') || lowerTranscription.includes('have')) {
-                                // Contains "set", "total", or "have" = set to exact value
-                                newCount = count;
-                            } else if (lowerTranscription.includes('multiply') || lowerTranscription.includes('times')) {
-                                // Contains "multiply" or "times" = multiply
-                                newCount = oldCount * count;
-                            } else if (lowerTranscription.includes('divide') || lowerTranscription.includes('over')) {
-                                // Contains "divide" or "over" = divide
-                                if (count === 0) {
-                                    // Divide by zero - route to unmapped
-                                    unmappedCommands.push({
-                                        raw_text: itemResult.recorded_item || itemResult.item,
-                                        reason: 'divide by zero',
-                                        suggested_item: itemResult.item,
-                                        item_phrase: itemResult.recorded_item || itemResult.item,
-                                        count_value: null
-                                    });
-                                    continue; // Skip this item, don't apply
-                                }
-                                newCount = oldCount / count;
-                            } else if (lowerTranscription.includes('add') || lowerTranscription.includes('plus') || lowerTranscription.includes('more')) {
-                                // Contains "add", "plus", or "more" = add
+                            } else if (transcription.toLowerCase().includes('add')) {
+                                // Contains "add" = add
                                 newCount = oldCount + count;
-                            } else if (lowerTranscription.includes('subtract') || lowerTranscription.includes('minus') || lowerTranscription.includes('less')) {
-                                // Contains "subtract", "minus", or "less" = subtract
-                                newCount = oldCount - count;
                             } else {
-                                // Default = set (safest default)
+                                // Default = set
                                 newCount = count;
                             }
                         }
@@ -3067,8 +2821,17 @@
                     updateDailyCountProgress();
                     checkFinishButtonVisibility();
                     
-                    // Last-command UI removed for mapped items - only unmapped items trigger UI updates
-                    // Mapped successes no longer populate the last-command area
+                    // Show structured last command for all updates
+                    if (interpretation.items.length === 1) {
+                        const item = interpretation.items[0];
+                        const finalTotal = inventoryCounts[item.item] || 0;
+                        // Use recorded item (not full transcription)
+                        const recordedItem = item.recorded_item || item.item_phrase || item.raw_phrase || item.item;
+                        showStructuredLastCommand(recordedItem, item.item, finalTotal);
+                    } else {
+                        // Multi-item: show structured display for each
+                        showMultiItemLastCommand(interpretation.items);
+                    }
                 }
                 
                 // Handle unmapped items
@@ -3087,19 +2850,33 @@
                     renderUnmappedCommands();
                 }
                 
-                // Summary display removed - unmapped items are shown via renderUnmappedCommands()
+                // Show comprehensive summary
+                if (updatedCount > 0 || unmappedCount > 0) {
+                    let summary = '';
+                    if (updatedCount > 0) {
+                        summary = `✓ Updated ${updatedCount} item(s)`;
+                    }
+                    if (unmappedCount > 0) {
+                        if (summary) summary += ' | ';
+                        summary += `${unmappedCount} unmapped`;
+                        document.getElementById('resolveNowButton').classList.remove('hidden');
+                    } else {
+                        document.getElementById('resolveNowButton').classList.add('hidden');
+                    }
+                    // Don't call showLastCommand here - it overwrites structured display
+                    // The structured display (showStructuredLastCommand / showMultiItemLastCommand) is already shown above
+                    // Only show lastCommandResult text
+                    document.getElementById('lastCommandResult').textContent = summary;
+                }
                 
                 resetDailyStatus();
-                
+
             } catch (error) {
-                console.error('Daily voice command error:', error);
-                setAPIStatus('ready'); // Reset to green on error
-                showDailyCountError(error.message || 'Failed to process voice command');
+                console.error('Error processing command:', error);
+                showDailyCountError('Failed to process command: ' + error.message);
                 resetDailyStatus();
             }
-        }
-
-        function resetDailyStatus() {
+        }        function resetDailyStatus() {
             document.getElementById('dailyCountStatus').innerHTML = `
                 <h4 class="text-xl font-semibold mb-2">Press "Record" to count next item</h4>
                 <p class="text-zinc-400">Say something like: "ribeyes twelve" or "we have 5 sirloins"</p>
@@ -3107,13 +2884,118 @@
             document.getElementById('dailyCountStatus').className = 'bg-zinc-800/50 rounded-xl p-6 mb-6 text-center';
         }
 
-        // lastCommandData removed - no last-command UI
+        // Store last command data globally for remap/edit
+        let lastCommandData = null;
 
-        // showLastCommand removed - no last-command UI
+        function showLastCommand(transcription, result) {
+            const display = document.getElementById('lastCommandDisplay');
+            document.getElementById('lastCommandText').textContent = `"${transcription}"`;
+            document.getElementById('lastCommandResult').textContent = result;
+            display.classList.remove('hidden');
+        }
 
-        // showStructuredLastCommand removed - no last-command UI
+        // Show structured last command with clickable tokens
+        // Format: recorded_item, matched_inventory_item, total (final running total)
+        function showStructuredLastCommand(rawPhrase, mappedItem, finalTotal) {
+            lastCommandData = { rawPhrase, mappedItem, count: finalTotal };
+            
+            const display = document.getElementById('lastCommandDisplay');
+            const textDiv = document.getElementById('lastCommandText');
+            
+            // Clear previous content
+            textDiv.innerHTML = '';
+            
+            // Create clickable tokens
+            const rawToken = document.createElement('span');
+            rawToken.className = 'inline-block px-3 py-1 bg-zinc-700 hover:bg-zinc-600 rounded-lg cursor-pointer transition-colors mr-2 mb-2';
+            rawToken.textContent = rawPhrase;
+            rawToken.title = 'Click to remap';
+            rawToken.onclick = () => openRemapModal(rawPhrase, mappedItem);
+            
+            const mappedToken = document.createElement('span');
+            mappedToken.className = 'inline-block px-3 py-1 bg-orange-600 hover:bg-orange-500 rounded-lg cursor-pointer transition-colors mr-2 mb-2';
+            mappedToken.textContent = mappedItem;
+            mappedToken.title = 'Click to change mapping';
+            mappedToken.onclick = () => openRemapModal(rawPhrase, mappedItem);
+            
+            const countToken = document.createElement('span');
+            countToken.className = 'inline-block px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded-lg cursor-pointer transition-colors mr-2 mb-2';
+            countToken.textContent = finalTotal.toString();
+            countToken.title = 'Click to edit total';
+            countToken.onclick = () => openCountEditModal(mappedItem, finalTotal);
+            
+            // Append tokens
+            textDiv.appendChild(rawToken);
+            textDiv.appendChild(document.createTextNode(' → '));
+            textDiv.appendChild(mappedToken);
+            textDiv.appendChild(document.createTextNode(' → '));
+            textDiv.appendChild(countToken);
+            
+            // Show success message in result div
+            document.getElementById('lastCommandResult').textContent = '✓ Updated successfully. Click tokens to correct.';
+            
+            display.classList.remove('hidden');
+        }
 
-        // showMultiItemLastCommand removed - no last-command UI
+        // Show multi-item last command with structured display
+        // Format per line: recorded_item, matched_inventory_item, total
+        function showMultiItemLastCommand(items) {
+            const display = document.getElementById('lastCommandDisplay');
+            const textDiv = document.getElementById('lastCommandText');
+            
+            // Clear previous content
+            textDiv.innerHTML = '';
+            
+            // Create container for multiple lines
+            const container = document.createElement('div');
+            container.className = 'space-y-2';
+            
+            items.forEach((item, index) => {
+                const lineDiv = document.createElement('div');
+                lineDiv.className = 'flex flex-wrap items-center gap-2 text-sm';
+                
+                // Get final total from inventoryCounts
+                const finalTotal = inventoryCounts[item.item] || 0;
+                // Use recorded_item from backend, fallback to other fields
+                const recordedItem = item.recorded_item || item.item_phrase || item.raw_phrase || item.item;
+                
+                // Recorded item token (what user said)
+                const recordedToken = document.createElement('span');
+                recordedToken.className = 'inline-block px-2 py-1 bg-zinc-700 hover:bg-zinc-600 rounded cursor-pointer transition-colors';
+                recordedToken.textContent = recordedItem;
+                recordedToken.title = 'Click to remap';
+                recordedToken.onclick = () => openRemapModal(recordedItem, item.item);
+                
+                // Matched item token
+                const mappedToken = document.createElement('span');
+                mappedToken.className = 'inline-block px-2 py-1 bg-orange-600 hover:bg-orange-500 rounded cursor-pointer transition-colors';
+                mappedToken.textContent = item.item;
+                mappedToken.title = 'Click to remap';
+                mappedToken.onclick = () => openRemapModal(recordedItem, item.item);
+                
+                // Total token (final running total)
+                const totalToken = document.createElement('span');
+                totalToken.className = 'inline-block px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded cursor-pointer transition-colors';
+                totalToken.textContent = finalTotal.toString();
+                totalToken.title = 'Click to edit total';
+                totalToken.onclick = () => openCountEditModal(item.item, finalTotal);
+                
+                lineDiv.appendChild(recordedToken);
+                lineDiv.appendChild(document.createTextNode(', '));
+                lineDiv.appendChild(mappedToken);
+                lineDiv.appendChild(document.createTextNode(', '));
+                lineDiv.appendChild(totalToken);
+                
+                container.appendChild(lineDiv);
+            });
+            
+            textDiv.appendChild(container);
+            
+            // Show success message
+            document.getElementById('lastCommandResult').textContent = `✓ Updated ${items.length} item(s). Click tokens to correct.`;
+            
+            display.classList.remove('hidden');
+        }
 
         // Remap modal for correcting wrong mappings
         function openRemapModal(rawPhrase, currentMappedItem) {
@@ -3259,7 +3141,11 @@
                 renderDailyInventoryList();
                 updateDailyCountProgress();
                 
-                // Last-command display removed - no UI update needed for remap
+                // Update last command display
+                if (lastCommandData) {
+                    lastCommandData.mappedItem = newMappedItem;
+                    showStructuredLastCommand(lastCommandData.rawPhrase, newMappedItem, lastCommandData.count);
+                }
 
                 document.body.removeChild(modal);
             });
@@ -3341,7 +3227,11 @@
                 updateDailyCountProgress();
                 checkFinishButtonVisibility();
                 
-                // Last-command display removed - no UI update needed for count edit
+                // Update last command display
+                if (lastCommandData) {
+                    lastCommandData.count = newCount;
+                    showStructuredLastCommand(lastCommandData.rawPhrase, lastCommandData.mappedItem, newCount);
+                }
 
                 document.body.removeChild(modal);
             });
@@ -3372,8 +3262,7 @@ function renderDailyInventoryList() {
                 }
 
                 return `
-                    <div class="${className} cursor-pointer" style="${style}" onclick="openQuickAdjustModal('${item.replace(/'/g, "\\'")}')"
-                        title="Tap to adjust count">
+                    <div class="${className}" style="${style}">
                         <div class="flex items-center justify-between">
                             <div class="font-semibold text-zinc-200">${normalizeDisplayText(item)}</div>
                             <div class="flex items-center gap-3">
@@ -3383,78 +3272,6 @@ function renderDailyInventoryList() {
                     </div>
                 `;
             }).join('');
-        }
-
-        function openQuickAdjustModal(itemName) {
-            const currentCount = inventoryCounts[itemName] || 0;
-            
-            // Create simple modal
-            const modal = document.createElement('div');
-            modal.className = 'fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4';
-            modal.innerHTML = `
-                <div class="glass-card max-w-sm w-full">
-                    <h3 class="text-xl font-bold mb-4">Adjust Count</h3>
-                    <p class="text-zinc-400 mb-2">${normalizeDisplayText(itemName)}</p>
-                    <p class="text-zinc-500 text-sm mb-4">Current: ${currentCount}</p>
-                    <input type="number" id="quickAdjustInput" value="${currentCount}" 
-                        class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-white text-center text-2xl focus:border-orange-500 focus:outline-none mb-4">
-                    <div class="flex gap-3">
-                        <button id="quickAdjustSave" class="btn btn-primary flex-1">Save</button>
-                        <button id="quickAdjustCancel" class="btn btn-glass">Cancel</button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-            
-            // Focus input and select all
-            const input = document.getElementById('quickAdjustInput');
-            setTimeout(() => {
-                input.focus();
-                input.select();
-            }, 100);
-            
-            // Cancel handler
-            document.getElementById('quickAdjustCancel').addEventListener('click', () => {
-                document.body.removeChild(modal);
-            });
-            
-            // Save handler
-            const saveHandler = () => {
-                const newCount = parseFloat(input.value) || 0;
-                const oldCount = inventoryCounts[itemName] || 0;
-                
-                if (newCount === oldCount) {
-                    document.body.removeChild(modal);
-                    return;
-                }
-                
-                // Update count
-                inventoryCounts[itemName] = newCount;
-                
-                // Add to history for undo
-                commandHistory.push({
-                    item: itemName,
-                    oldCount: oldCount,
-                    newCount: newCount,
-                    transcription: 'Quick adjust'
-                });
-                
-                // Update UI
-                renderDailyInventoryList();
-                updateDailyCountProgress();
-                checkFinishButtonVisibility();
-                
-                document.body.removeChild(modal);
-            };
-            
-            document.getElementById('quickAdjustSave').addEventListener('click', saveHandler);
-            
-            // Enter key to save
-            input.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    saveHandler();
-                }
-            });
         }
 
         function updateDailyCountProgress() {
@@ -3588,6 +3405,7 @@ function renderDailyInventoryList() {
         function renderUnmappedCommands() {
             if (unmappedCommands.length === 0) {
                 document.getElementById('unmappedSection').classList.add('hidden');
+                document.getElementById('resolveNowButton').classList.add('hidden'); // Hide button when empty
                 checkFinishButtonVisibility();
                 return;
             }
@@ -3602,34 +3420,21 @@ function renderDailyInventoryList() {
                 const countValue = cmd.count_value !== undefined ? cmd.count_value : null;
                 
                 return `
-                    <div class="flex items-center justify-between p-3 bg-yellow-500/5 rounded hover:bg-yellow-500/10 transition-colors">
-                        <div class="flex-1 cursor-pointer" onclick="resolveUnmappedItem('${cmd.raw_text.replace(/'/g, "\\'")}',' ${cmd.reason.replace(/'/g, "\\'")}',' ${suggestedItem.replace(/'/g, "\\'")}',' ${itemPhrase.replace(/'/g, "\\'")}',' ${countValue})">
+                    <div class="flex items-center justify-between p-3 bg-yellow-500/5 rounded cursor-pointer hover:bg-yellow-500/10 transition-colors" 
+                        onclick="resolveUnmappedItem('${cmd.raw_text.replace(/'/g, "\\'")}', '${cmd.reason.replace(/'/g, "\\'")}', '${suggestedItem.replace(/'/g, "\\'")}', '${itemPhrase.replace(/'/g, "\\'")}', ${countValue})">
+                        <div>
                             <span class="text-zinc-300 font-medium">"${cmd.raw_text}"</span>
-                            ${suggestedItem ? `<span class="text-orange-400 text-xs ml-2">💡 Suggested: ${suggestedItem}</span>` : ''}
+                            ${suggestedItem ? `<span class="text-orange-400 text-xs ml-2">ðŸ’¡ Suggested: ${suggestedItem}</span>` : ''}
                             <span class="text-zinc-500 text-xs ml-2">${cmd.reason}</span>
                         </div>
-                        <div class="flex items-center gap-2">
-                            <button onclick="event.stopPropagation(); skipUnmappedItem(${index});" class="px-3 py-1 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 rounded text-sm transition-colors">
-                                Skip
-                            </button>
-                            <svg class="w-5 h-5 text-yellow-400 cursor-pointer" fill="none" stroke="currentColor" viewBox="0 0 24 24" onclick="resolveUnmappedItem('${cmd.raw_text.replace(/'/g, "\\'")}',' ${cmd.reason.replace(/'/g, "\\'")}',' ${suggestedItem.replace(/'/g, "\\'")}',' ${itemPhrase.replace(/'/g, "\\'")}',' ${countValue})">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
-                            </svg>
-                        </div>
+                        <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                        </svg>
                     </div>
                 `;
             }).join('');
             
             checkFinishButtonVisibility();
-        }
-
-        function skipUnmappedItem(index) {
-            if (index >= 0 && index < unmappedCommands.length) {
-                // Remove the specific unmapped item from the queue
-                unmappedCommands.splice(index, 1);
-                // Re-render the unmapped list
-                renderUnmappedCommands();
-            }
         }
 
         function undoLastCommand() {
@@ -3643,7 +3448,7 @@ function renderDailyInventoryList() {
             inventoryCounts[lastCommand.item] = lastCommand.oldCount;
             
             renderCurrentCounts();
-            // Last-command UI removed - undo no longer triggers last-command rendering
+            showLastCommand('Undo', `Reverted ${lastCommand.item} to ${lastCommand.oldCount}`);
         }
 
         function resetCount() {
@@ -3661,6 +3466,7 @@ function renderDailyInventoryList() {
             renderDailyInventoryList();
             updateDailyCountProgress();
             renderUnmappedCommands();
+            document.getElementById('lastCommandDisplay').classList.add('hidden');
         }
 
         // Manual unmapped resolution
@@ -3946,7 +3752,7 @@ function renderDailyInventoryList() {
                 renderUnmappedCommands();
                 checkFinishButtonVisibility();
 
-                // Last command display removed - no UI update needed
+                showLastCommand(`Manual: ${unmappedText}`, `✓ Mapped "${aliasPhrase}" to ${selectedItem}: ${count}`);
 
                 document.body.removeChild(modal);
             });
@@ -4026,7 +3832,7 @@ function renderDailyInventoryList() {
                 updateDailyCountProgress();
                 checkFinishButtonVisibility();
 
-                // Last command display removed - no UI update needed
+                showLastCommand('Manual adjustment', `✓ ${itemName}: ${currentCount} → ${newCount}`);
 
                 document.body.removeChild(modal);
             });
@@ -4127,202 +3933,15 @@ function renderDailyInventoryList() {
             setTimeout(() => errorDiv.classList.add('hidden'), 5000);
         }
 
-        let lastTranscriptionAttempt = '';
-
         function showDailyCountError(message) {
             const errorDiv = document.getElementById('dailyCountError');
-            let fullMessage = message;
-            
-            // Append last transcription if available (helps with debugging)
-            if (lastTranscriptionAttempt) {
-                fullMessage += ` | Last recorded: "${lastTranscriptionAttempt}"`;
-            }
-            
-            errorDiv.textContent = fullMessage;
+            errorDiv.textContent = message;
             errorDiv.classList.remove('hidden');
-            setTimeout(() => errorDiv.classList.add('hidden'), 8000); // Longer timeout for more info
+            setTimeout(() => errorDiv.classList.add('hidden'), 5000);
         }
 
         // Initialize on page load
         updateLastRunDisplay();
-
-        // ============================================
-        // EXCEL IMPORT
-        // ============================================
-
-        let excelData = null;
-
-        function openExcelImportModal() {
-            document.getElementById('excelImportModal').classList.remove('hidden');
-            document.getElementById('excelColumnSelector').classList.add('hidden');
-            document.getElementById('excelImportStatus').classList.add('hidden');
-            document.getElementById('excelFileInput').value = '';
-            excelData = null;
-        }
-
-        function closeExcelImportModal() {
-            document.getElementById('excelImportModal').classList.add('hidden');
-        }
-
-        async function handleExcelFile(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            
-            const statusDiv = document.getElementById('excelImportStatus');
-            
-            try {
-                // Read file as array buffer
-                const arrayBuffer = await file.arrayBuffer();
-                
-                // Send to server for parsing (requires xlsx library server-side)
-                const formData = new FormData();
-                formData.append('file', file);
-                
-                const response = await fetch('/parse-excel', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Failed to parse Excel file');
-                }
-                
-                excelData = await response.json();
-                
-                // Populate column selectors
-                const itemSelect = document.getElementById('itemColumnSelect');
-                const countSelect = document.getElementById('countColumnSelect');
-                
-                itemSelect.innerHTML = '';
-                countSelect.innerHTML = '';
-                
-                excelData.columns.forEach((col, idx) => {
-                    const itemOption = document.createElement('option');
-                    itemOption.value = idx;
-                    itemOption.textContent = col;
-                    itemSelect.appendChild(itemOption);
-                    
-                    const countOption = document.createElement('option');
-                    countOption.value = idx;
-                    countOption.textContent = col;
-                    countSelect.appendChild(countOption);
-                });
-                
-                // Show column selector
-                document.getElementById('excelColumnSelector').classList.remove('hidden');
-                
-            } catch (error) {
-                console.error('Excel file error:', error);
-                statusDiv.textContent = 'Failed to read Excel file. Please try again.';
-                statusDiv.className = 'mt-3 p-3 rounded-lg text-sm bg-red-500/10 border border-red-500/50 text-red-400';
-                statusDiv.classList.remove('hidden');
-            }
-        }
-
-        function processExcelImport() {
-            if (!excelData) return;
-            
-            const itemColumnIdx = parseInt(document.getElementById('itemColumnSelect').value);
-            const countColumnIdx = parseInt(document.getElementById('countColumnSelect').value);
-            const statusDiv = document.getElementById('excelImportStatus');
-            
-            let imported = 0;
-            let skipped = 0;
-            
-            // Process each row
-            excelData.rows.forEach(row => {
-                const itemName = row[itemColumnIdx]?.toString().trim();
-                const countValue = parseFloat(row[countColumnIdx]);
-                
-                if (!itemName || isNaN(countValue)) {
-                    skipped++;
-                    return;
-                }
-                
-                // Try to match to existing inventory items
-                const matchedItem = dailyInventory.find(item => 
-                    item.toLowerCase() === itemName.toLowerCase()
-                );
-                
-                if (matchedItem) {
-                    inventoryCounts[matchedItem] = countValue;
-                    imported++;
-                } else {
-                    skipped++;
-                }
-            });
-            
-            // Update UI
-            renderDailyInventoryList();
-            updateDailyCountProgress();
-            
-            statusDiv.textContent = `Imported ${imported} counts. ${skipped} items skipped (not in master list).`;
-            statusDiv.className = 'mt-3 p-3 rounded-lg text-sm bg-green-500/10 border border-green-500/50 text-green-400';
-            statusDiv.classList.remove('hidden');
-            
-            // Close modal after 2 seconds
-            setTimeout(() => {
-                closeExcelImportModal();
-            }, 2000);
-        }
-
-        // ============================================
-        // FEEDBACK WIDGET
-        // ============================================
-
-        function openFeedbackModal() {
-            document.getElementById('feedbackModal').classList.remove('hidden');
-            document.getElementById('feedbackText').value = '';
-            document.getElementById('feedbackStatus').classList.add('hidden');
-        }
-
-        function closeFeedbackModal() {
-            document.getElementById('feedbackModal').classList.add('hidden');
-        }
-
-        async function submitFeedback() {
-            const feedbackText = document.getElementById('feedbackText').value.trim();
-            const statusDiv = document.getElementById('feedbackStatus');
-            
-            if (!feedbackText) {
-                statusDiv.textContent = 'Please enter your feedback before submitting.';
-                statusDiv.className = 'mt-3 p-3 rounded-lg text-sm bg-yellow-500/10 border border-yellow-500/50 text-yellow-400';
-                statusDiv.classList.remove('hidden');
-                return;
-            }
-            
-            try {
-                // Send feedback to server
-                const response = await fetch('/submit-feedback', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        feedback: feedbackText,
-                        timestamp: new Date().toISOString(),
-                        userAgent: navigator.userAgent
-                    })
-                });
-                
-                if (response.ok) {
-                    statusDiv.textContent = 'Thank you! Your feedback has been sent.';
-                    statusDiv.className = 'mt-3 p-3 rounded-lg text-sm bg-green-500/10 border border-green-500/50 text-green-400';
-                    statusDiv.classList.remove('hidden');
-                    
-                    // Close modal after 2 seconds
-                    setTimeout(() => {
-                        closeFeedbackModal();
-                    }, 2000);
-                } else {
-                    throw new Error('Failed to submit feedback');
-                }
-            } catch (error) {
-                console.error('Feedback submission error:', error);
-                statusDiv.textContent = 'Failed to send feedback. Please try again later.';
-                statusDiv.className = 'mt-3 p-3 rounded-lg text-sm bg-red-500/10 border border-red-500/50 text-red-400';
-                statusDiv.classList.remove('hidden');
-            }
-        }
-
     </script>
 </body>
 </html>
