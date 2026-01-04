@@ -1,0 +1,242 @@
+// Main parse endpoint
+app.post('/parse', upload.array('images', 30), async (req, res) => {
+  const requestId = uuidv4();
+
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ requestId, error: 'No images provided' });
+    }
+
+    let inventory = null;
+    let useInventoryHash = false;
+
+    if (req.body.inventory) {
+      try {
+        inventory = JSON.parse(req.body.inventory);
+        if (Array.isArray(inventory) && inventory.length > 0) {
+          useInventoryHash = true;
+        }
+      } catch (err) {
+        console.warn('Invalid inventory JSON, falling back to simple caching:', err.message);
+      }
+    }
+
+    let cacheKey, cachedResult;
+
+    if (useInventoryHash) {
+      const currentInvHash = generateInventoryHash(inventory);
+      cacheKey = generateCacheKeyWithHash(req.files, currentInvHash);
+      cachedResult = getCachedWithValidation(cacheKey, currentInvHash);
+      
+      if (cachedResult) {
+        console.log(`Cache HIT (inventory-aware) for request ${requestId}`);
+        return res.json({
+          ...cachedResult,
+          requestId,
+          cached: true,
+          cacheType: 'inventory-aware'
+        });
+      }
+    } else {
+      cacheKey = generateCacheKey(req.files);
+      cachedResult = getCached(cacheKey);
+      
+      if (cachedResult) {
+        console.log(`Cache HIT (simple) for request ${requestId}`);
+        return res.json({
+          ...cachedResult,
+          requestId,
+          cached: true,
+          cacheType: 'simple'
+        });
+      }
+    }
+
+    console.log(`Cache MISS for request ${requestId} (type: ${useInventoryHash ? 'inventory-aware' : 'simple'})`);
+
+    const client = await getVisionClient();
+
+    const ocrTexts = await Promise.all(
+      req.files.map(async file => {
+        try {
+          const pre = await preprocessForOcr(file.buffer);
+          return await ocrBuffer(client, pre);
+        } catch {
+          return '';
+        }
+      })
+    );
+
+    const combinedOcrText = ocrTexts
+      .map((t, i) => `--- IMAGE ${i + 1} ---\n${t}`)
+      .join('\n\n');
+
+    if (!combinedOcrText.trim()) {
+      return res.json({
+        requestId,
+        success: true,
+        extracted: [],
+        unmapped: [{ raw_text: '', reason: 'No readable OCR text' }]
+      });
+    }
+
+    const prompt = buildPrompt(combinedOcrText, req.files.length);
+
+    const response = await fetchWithTimeout(
+      'https://api.anthropic.com/v1/messages',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 4000,
+          messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
+        })
+      },
+      30000
+    );
+
+    if (!response.ok) {
+      throw new Error(`Anthropic API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const text = data.content.map(c => c.text || '').join('\n');
+
+    const parsed = extractJson(text);
+
+    const result = {
+      success: true,
+      extracted: parsed.extracted || [],
+      unmapped: parsed.unmapped || []
+    };
+
+    if (useInventoryHash) {
+      const currentInvHash = generateInventoryHash(inventory);
+      const ttl = 28800;
+      setCachedWithHash(cacheKey, result, currentInvHash, ttl);
+    } else {
+      setCached(cacheKey, result, 28800);
+    }
+
+    res.json({
+      requestId,
+      ...result,
+      cached: false,
+      cacheType: useInventoryHash ? 'inventory-aware' : 'simple'
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      requestId,
+      error: 'Server error',
+      details: err.message
+    });
+  }
+});
+
+// Voice processing endpoint
+app.post('/process-voice', upload.single('audio'), async (req, res) => {
+  const requestId = uuidv4();
+
+  try {
+    if (!req.file) {
+      return res.status(400).json({ requestId, error: 'No audio file provided' });
+    }
+
+    const client = await getSpeechClient();
+
+    const audio = {
+      content: req.file.buffer.toString('base64')
+    };
+
+    const config = {
+      encoding: 'WEBM_OPUS',
+      sampleRateHertz: 48000,
+      languageCode: 'en-US',
+      enableAutomaticPunctuation: false,
+      model: 'command_and_search'
+    };
+
+    const request = {
+      audio: audio,
+      config: config
+    };
+
+    const [response] = await client.recognize(request);
+    
+    if (!response.results || response.results.length === 0) {
+      return res.json({
+        requestId,
+        success: true,
+        transcription: ''
+      });
+    }
+
+    const transcription = response.results
+      .map(result => result.alternatives[0].transcript)
+      .join(' ')
+      .trim();
+
+    res.json({
+      requestId,
+      success: true,
+      transcription: transcription
+    });
+
+  } catch (err) {
+    console.error('Voice processing error:', err);
+    res.status(500).json({
+      requestId,
+      error: 'Voice processing failed',
+      details: err.message
+    });
+  }
+});
+
+// Session management endpoints
+app.post('/count/session/start', express.json(), async (req, res) => {
+  if (!ENABLE_SESSIONS) {
+    return res.json({ success: false, error: 'Sessions disabled' });
+  }
+
+  try {
+    const { user_id, list_id } = req.body;
+    const session_id = uuidv4();
+
+    await db.query(
+      `INSERT INTO count_sessions_v2 (session_id, user_id, list_id) VALUES (?, ?, ?)`,
+      [session_id, user_id || 'default_user', list_id || 'default_list']
+    );
+
+    res.json({ success: true, session_id });
+  } catch (err) {
+    console.error('Session start error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/count/session/update-hot-list', express.json(), async (req, res) => {
+  if (!ENABLE_HOT_LIST) {
+    return res.json({ success: false, error: 'Hot list disabled' });
+  }
+
+  try {
+    const { session_id, item_name, list_id } = req.body;
+    const entry_id = uuidv4();
+
+    await db.query(
+      `INSERT INTO hot_list_entries (entry_id, session_id, item_id) VALUES (?, ?, ?)`,
+      [entry_id, session_id, item_name]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Hot list update error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
