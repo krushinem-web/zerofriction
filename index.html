@@ -4,74 +4,102 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>KrushFlow Inventory</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
-        :root { --brand: #f97316; --brand-gradient: linear-gradient(135deg, #f97316 0%, #ef4444 50%, #facc15 100%); --bg: #09090b; }
+        :root { 
+            --brand: #f97316; 
+            --brand-gradient: linear-gradient(135deg, #f97316 0%, #ef4444 50%, #facc15 100%);
+            --glass: rgba(24, 24, 27, 0.7);
+            --bg: #09090b; 
+        }
         body { background-color: var(--bg); color: white; font-family: 'Inter', sans-serif; margin: 0; min-height: 100vh; overflow-x: hidden; }
         .hidden { display: none !important; }
-        .container { max-width: 800px; margin: 0 auto; padding: 20px 20px 100px 20px; }
+        .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
         
-        /* Fiery Glassmorphism */
-        .glass-card { background: rgba(24, 24, 27, 0.7); backdrop-filter: blur(16px); border: 1px solid rgba(249, 115, 22, 0.2); border-radius: 1.25rem; padding: 1.5rem; margin-bottom: 1rem; }
+        /* Visual Re-alignment: Fiery Glow & Logo */
+        header { text-align: center; margin-bottom: 3rem; }
+        .logo { max-width: 450px; width: 90%; filter: drop-shadow(0 0 20px rgba(249, 115, 22, 0.4)); }
         
-        /* Last Command Area - No screen jumps, no background */
-        #lastCommand { height: 40px; color: #a1a1aa; font-weight: 500; text-align: center; }
+        /* Grid Layout */
+        .mode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
+        
+        /* Glassmorphism Cards */
+        .glass-card { 
+            background: var(--glass); 
+            backdrop-filter: blur(16px); 
+            border: 1px solid rgba(249, 115, 22, 0.2); 
+            border-radius: 1.5rem; 
+            padding: 2rem; 
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .glass-card:active { transform: scale(0.98); }
 
-        /* Inventory List - Manual Tapping */
-        .inventory-row { display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid #27272a; }
-        .qty-box { background: var(--brand-gradient); color: white; padding: 0.5rem 1.25rem; border-radius: 0.75rem; font-weight: 800; cursor: pointer; min-width: 50px; text-align: center; }
+        /* Last Command Area - Rules: Single line, no shading */
+        #lastCommand { height: 40px; color: #facc15; font-weight: 600; text-align: center; margin-bottom: 1rem; }
 
-        /* Recording UX */
-        #recordBtn { position: fixed; bottom: 30px; right: 30px; width: 80px; height: 80px; background: #ef4444; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4); z-index: 1000; }
+        /* Inventory Row - Rules: Manual tapping to edit */
+        .inventory-row { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem; background: var(--glass); border-radius: 1rem; border: 1px solid #27272a; margin-bottom: 0.75rem; }
+        .qty-badge { background: var(--brand-gradient); padding: 0.5rem 1.5rem; border-radius: 0.75rem; font-weight: 800; cursor: pointer; min-width: 40px; text-align: center; }
+
+        /* Recording UI - Rules: Pulsing mic */
+        #recordBtn { position: fixed; bottom: 40px; right: 40px; width: 80px; height: 80px; background: #ef4444; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; z-index: 1000; }
         .pulse { animation: pulse-red 2s infinite; }
-        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 25px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
     </style>
 </head>
 <body>
     <div class="container">
-        <header style="text-align: center; margin-bottom: 2rem;">
-            <img src="logo.png" style="max-width: 400px; width: 90%; filter: drop-shadow(0 0 15px rgba(249, 115, 22, 0.5));">
+        <header>
+            <img src="logo.png" class="logo" alt="KrushFlow">
         </header>
 
-        <div id="lastCommand"></div>
-
-        <div id="mainView">
-            <div id="modeSelection" class="grid-cols-1">
-                <div class="glass-card" onclick="startMode('daily-count')">
-                    <h3 style="margin: 0;">Start Daily Count</h3>
-                    <p style="color: #a1a1aa; margin-top: 5px;">Use voice commands to update inventory</p>
-                </div>
+        <div id="modeSelection" class="mode-grid">
+            <div class="glass-card" onclick="initInventory()">
+                <h3>Start Daily Count</h3>
+                <p style="color: #a1a1aa;">Verb + Quantity Control</p>
             </div>
+        </div>
 
-            <div id="inventoryContainer"></div>
+        <div id="inventoryView" class="hidden">
+            <div id="lastCommand"></div>
+            <div id="itemList"></div>
         </div>
     </div>
 
-    <button id="recordBtn" onclick="handleVoice()">
-        <svg width="36" height="36" fill="white" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></button>
+    <button id="recordBtn" onclick="toggleMic()">
+        <svg width="32" height="32" fill="white" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></button>
 
     <script>
-        let inventory = {}; // State: { "Item Name": 0 }
+        let inventory = {};
 
-        // PART 3 & 4: Command Interpretation & Manual Adjustment
-        function adjustQty(item, rawInput) {
-            inventory[item] = parseFloat(rawInput) || 0;
-            renderInventory();
+        function initInventory() {
+            document.getElementById('modeSelection').classList.add('hidden');
+            document.getElementById('inventoryView').classList.remove('hidden');
         }
 
-        function renderInventory() {
-            const list = document.getElementById('inventoryContainer');
+        // UX: Manual adjustment via prompt
+        function manualAdjust(item) {
+            const current = inventory[item] || 0;
+            const newVal = prompt(`Set quantity for ${item}:`, current);
+            if (newVal !== null) {
+                inventory[item] = parseFloat(newVal) || 0;
+                render();
+            }
+        }
+
+        function render() {
+            const list = document.getElementById('itemList');
             list.innerHTML = Object.keys(inventory).map(item => `
-                <div class="inventory-row glass-card">
-                    <span style="font-weight: 600;">${item}</span>
-                    <div class="qty-box" onclick="let n = prompt('Adjust ${item}', inventory['${item}']); if(n!==null) adjustQty('${item}', n)">
-                        ${inventory[item]}
-                    </div>
+                <div class="inventory-row">
+                    <span>${item}</span>
+                    <div class="qty-badge" onclick="manualAdjust('${item}')">${inventory[item]}</div>
                 </div>
             `).join('');
         }
 
-        // Voice Command Capture: "add twenty", "subtract five", "set ten"
+        // Logic: Strict Verb + Quantity
         function parseCommand(transcript) {
             const words = transcript.toLowerCase().split(' ');
             const verbs = ['add', 'subtract', 'set'];
@@ -79,22 +107,21 @@
             const qty = parseFloat(words.find(w => !isNaN(w)));
             const item = words.filter(w => !verbs.includes(w) && isNaN(w)).join(' ');
 
-            if (verb && !isNaN(qty)) {
+            if (verb && !isNaN(qty) && item) {
                 if (verb === 'add') inventory[item] = (inventory[item] || 0) + qty;
                 else if (verb === 'subtract') inventory[item] = (inventory[item] || 0) - qty;
                 else if (verb === 'set') inventory[item] = qty;
                 
-                document.getElementById('lastCommand').innerText = `✓ ${verb.toUpperCase()} ${qty} → ${item}`;
-                renderInventory();
+                document.getElementById('lastCommand').innerText = `✓ ${verb.toUpperCase()} ${qty} -> ${item}`;
+                render();
             }
         }
 
         let isRecording = false;
-        function handleVoice() {
+        function toggleMic() {
             const btn = document.getElementById('recordBtn');
             isRecording = !isRecording;
             isRecording ? btn.classList.add('pulse') : btn.classList.remove('pulse');
-            // MediaRecorder implementation would call /process-voice here
         }
     </script>
 </body>
