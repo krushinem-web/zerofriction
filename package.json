@@ -1,23 +1,63 @@
-{
-  "name": "krushflow-inventory",
-  "version": "1.0.0",
-  "description": "AI-powered restaurant inventory management",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.18.0",
-    "@google-cloud/speech": "^6.7.0",
-    "@google-cloud/vision": "^4.0.2",
-    "cors": "^2.8.5",
-    "express": "^4.18.2",
-    "multer": "^1.4.5-lts.1",
-    "node-cache": "^5.1.2",
-    "sharp": "^0.33.0",
-    "uuid": "^9.0.1"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  }
+const express = require('express');
+const multer = require('multer');
+const cors = require('cors');
+const { v4: uuidv4 } = require('uuid');
+const vision = require('@google-cloud/vision');
+const speech = require('@google-cloud/speech');
+
+const app = express();
+const upload = multer({ limits: { fileSize: 8 * 1024 * 1024 } });
+
+app.use(cors());
+app.use(express.json());
+app.use(express.static(__dirname));
+
+// STARTUP LOGGING
+console.log('--- KrushFlow Startup Sequence ---');
+console.log(`Port: ${process.env.PORT || 3000}`);
+console.log(`Node Env: ${process.env.NODE_ENV || 'development'}`);
+
+// Initialize Google Clients with clear status logging
+async function getVisionClient() {
+    try {
+        const creds = JSON.parse(process.env.GOOGLE_CREDS);
+        const client = new vision.ImageAnnotatorClient({ credentials: creds });
+        console.log('✓ Google Vision Client: Initialized');
+        return client;
+    } catch (e) {
+        console.error('✗ Google Vision Client: Failed to initialize. Check GOOGLE_CREDS env var.');
+        return null;
+    }
 }
+
+async function getSpeechClient() {
+    try {
+        const creds = JSON.parse(process.env.GOOGLE_CREDS);
+        const client = new speech.SpeechClient({ credentials: creds });
+        console.log('✓ Google Speech Client: Initialized');
+        return client;
+    } catch (e) {
+        console.error('✗ Google Speech Client: Failed to initialize. Check GOOGLE_CREDS env var.');
+        return null;
+    }
+}
+
+// Routes
+app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'));
+
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok', uptime: process.uptime() });
+});
+
+// START SERVER IMMEDIATELY
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, async () => {
+    console.log(`✓ Server is now listening on port ${PORT}`);
+    
+    // Background client initialization to prevent hanging
+    await getVisionClient();
+    await getSpeechClient();
+    
+    console.log(`API Key Status: Claude=${!!process.env.ANTHROPIC_API_KEY}`);
+    console.log('--- Startup Complete ---');
+});
