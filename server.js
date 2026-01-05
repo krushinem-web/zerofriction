@@ -1,51 +1,64 @@
 const express = require('express');
 const multer = require('multer');
-const cors = require('cors');
-const vision = require('@google-cloud/vision');
 const speech = require('@google-cloud/speech');
+const Anthropic = require('@anthropic-ai/sdk');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const upload = multer({ limits: { fileSize: 8 * 1024 * 1024 } });
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
-const creds = JSON.parse(process.env.GOOGLE_CREDS);
-const visionClient = new vision.ImageAnnotatorClient({ credentials: creds });
-const speechClient = new speech.SpeechClient({ credentials: creds });
+// Server-side KrushProfile and Project Memory
+let krushProfile = { aliases: {} }; // { "alias": "canonicalName" }
+let activeProjects = {}; // { projectId: { masterList: [], counts: {} } }
 
-app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'));
+app.post('/daily-count/process', upload.single('audio'), async (req, res) => {
+    const speechClient = new speech.SpeechClient();
+    const { projectId } = req.body;
+    const project = activeProjects[projectId];
 
-// PART 1: IMAGE -> OCR (Rules: Extract raw text, no invention)
-app.post('/parse', upload.array('images', 30), async (req, res) => {
-    try {
-        const ocrTexts = await Promise.all(req.files.map(async (file) => {
-            const [result] = await visionClient.documentTextDetection(file.buffer);
-            return result.fullTextAnnotation?.text || '';
-        }));
-        res.json({
-            extracted: ocrTexts.map(t => ({ raw_text: t, quantity: 0 })),
-            unmapped: []
-        });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+    // 1 & 2) STT Perception
+    const [response] = await speechClient.recognize({
+        audio: { content: req.file.buffer.toString('base64') },
+        config: { encoding: 'WEBM_OPUS', sampleRateHertz: 48000, languageCode: 'en-US' }
+    });
+    const transcript = response.results[0].alternatives[0].transcript.toLowerCase();
+
+    // 3) Parse with Claude Intelligence (Item, Op, Qty)
+    const aiResponse = await anthropic.messages.create({
+        model: "claude-3-5-sonnet-20241022",
+        max_tokens: 300,
+        messages: [{
+            role: "user",
+            content: `Extract from: "${transcript}". 
+            Rules: Verb must be ADD, SUBTRACT, or SET. Quantity must be numeric.
+            Return JSON: {"item": "string", "op": "ADD|SUBTRACT|SET", "qty": number}`
+        }]
+    });
+    const parsed = JSON.parse(aiResponse.content[0].text);
+
+    // 4) Matching Engine
+    let target = null;
+    if (krushProfile.aliases[parsed.item]) {
+        target = krushProfile.aliases[parsed.item];
+    } else if (project.masterList.includes(parsed.item)) {
+        target = parsed.item;
     }
+
+    // 5) Apply ONLY if single confident match exists
+    if (target) {
+        if (parsed.op === 'ADD') project.counts[target] = (project.counts[target] || 0) + parsed.qty;
+        if (parsed.op === 'SUBTRACT') project.counts[target] = (project.counts[target] || 0) - parsed.qty;
+        if (parsed.op === 'SET') project.counts[target] = parsed.qty;
+        
+        return res.json({ success: true, item: target, val: project.counts[target], transcript });
+    }
+
+    // NO-GUESSING: Return as Unresolved
+    res.json({ success: false, unresolved: true, transcript, parsed });
 });
 
-// PART 2: VOICE -> TRANSCRIPTION (Rules: Raw transcription only)
-app.post('/process-voice', upload.single('audio'), async (req, res) => {
-    try {
-        const audio = { content: req.file.buffer.toString('base64') };
-        const config = { encoding: 'WEBM_OPUS', sampleRateHertz: 48000, languageCode: 'en-US' };
-        const [response] = await speechClient.recognize({ audio, config });
-        const transcription = response.results.map(r => r.alternatives[0].transcript).join(' ');
-        res.json({ transcription: transcription.toLowerCase() });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Zero-Friction Engine Active on ${PORT}`));
+app.listen(3000);
