@@ -18,7 +18,7 @@ const speechClient = new speech.SpeechClient({ credentials: creds });
 
 app.get('/', (req, res) => res.sendFile(__dirname + '/index.html'));
 
-// PART 1: IMAGE -> OCR (Extract raw text only)
+// Image Pipeline (OCR)
 app.post('/parse', upload.array('images', 30), async (req, res) => {
     try {
         const ocrTexts = await Promise.all(req.files.map(async (file) => {
@@ -34,7 +34,7 @@ app.post('/parse', upload.array('images', 30), async (req, res) => {
     }
 });
 
-// PART 2: VOICE -> TRANSCRIPTION (Raw text capture)
+// Voice Pipeline (Transcription)
 app.post('/process-voice', upload.single('audio'), async (req, res) => {
     try {
         const audio = { content: req.file.buffer.toString('base64') };
@@ -48,4 +48,4 @@ app.post('/process-voice', upload.single('audio'), async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Zero-Friction Engine running on ${PORT}`));
+app.listen(PORT, () => console.log(`Zero-Friction Engine active on ${PORT}`));
