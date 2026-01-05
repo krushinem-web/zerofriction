@@ -638,7 +638,7 @@
                     <h3 class="text-2xl text-white mb-3" style="font-weight: 600;">Drop images here or click to upload</h3>
                     <p class="text-zinc-400 font-normal" style="font-weight: 400;">Supports JPEG, PNG, WEBP • Max 8MB per image • Up to 30 images</p>
                 </div>
-                <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" multiple class="hidden">
+                <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" capture="environment" multiple class="hidden">
                 
                 <!-- File List -->
                 <div id="fileList" class="hidden mt-6 space-y-3"></div>
@@ -749,7 +749,7 @@
                     <h3 class="text-xl font-semibold text-white mb-2">Upload New Prep Sheet Images</h3>
                     <p class="text-zinc-400 text-sm">Supports JPEG, PNG, WEBP • Max 8MB per image • Up to 30 images</p>
                 </div>
-                <input type="file" id="voiceFileInput" accept="image/jpeg,image/png,image/webp" multiple class="hidden">
+                <input type="file" id="voiceFileInput" accept="image/jpeg,image/png,image/webp" capture="environment" multiple class="hidden">
                 
                 <div id="voiceFileList" class="hidden mb-6 space-y-3"></div>
                 
@@ -1304,7 +1304,6 @@
 
         // Mode selection
         function selectMode(mode) {
-            alert('selectMode called with: ' + mode);
             currentMode = mode;
             document.getElementById('modeSelectionScreen').classList.add('hidden');
             

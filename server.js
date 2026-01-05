@@ -15,6 +15,47 @@ app.use(express.static(__dirname));
 let krushProfile = { aliases: {} }; // { "alias": "canonicalName" }
 let activeProjects = {}; // { projectId: { masterList: [], counts: {} } }
 
+// Image parsing endpoint
+app.post('/parse', upload.array('images', 30), async (req, res) => {
+    try {
+        const images = req.files;
+        if (!images || images.length === 0) {
+            return res.status(400).json({ error: 'No images uploaded' });
+        }
+
+        // Use Claude Vision to extract inventory items from images
+        const imageContents = images.map(img => ({
+            type: 'image',
+            source: {
+                type: 'buffer',
+                media_type: img.mimetype,
+                data: img.buffer.toString('base64')
+            }
+        }));
+
+        const aiResponse = await anthropic.messages.create({
+            model: "claude-3-5-sonnet-20241022",
+            max_tokens: 4096,
+            messages: [{
+                role: "user",
+                content: [
+                    ...imageContents,
+                    {
+                        type: 'text',
+                        text: `Extract all inventory items from these prep sheet images. Return a JSON array of item names only. Format: {"items": ["item1", "item2", ...]}`
+                    }
+                ]
+            }]
+        });
+
+        const parsed = JSON.parse(aiResponse.content[0].text);
+        res.json({ items: parsed.items || [] });
+    } catch (error) {
+        console.error('Parse error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.post('/daily-count/process', upload.single('audio'), async (req, res) => {
     const speechClient = new speech.SpeechClient();
     const { projectId } = req.body;
@@ -59,6 +100,19 @@ app.post('/daily-count/process', upload.single('audio'), async (req, res) => {
 
     // NO-GUESSING: Return as Unresolved
     res.json({ success: false, unresolved: true, transcript, parsed });
+});
+
+// Excel parsing endpoint (placeholder - requires xlsx library)
+app.post('/parse-excel', upload.single('file'), async (req, res) => {
+    try {
+        // For now, return error indicating xlsx support needed
+        res.status(501).json({ 
+            error: 'Excel parsing not yet implemented',
+            message: 'Please install xlsx library: npm install xlsx'
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 app.listen(3000);
