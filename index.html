@@ -16,11 +16,11 @@
         .hidden { display: none !important; }
         .container { max-width: 1000px; margin: 0 auto; padding: 40px 20px; }
         
-        /* Logo and Header Glow */
+        /* Fiery Logo Glow */
         header { text-align: center; margin-bottom: 4rem; }
         .logo { max-width: 450px; width: 90%; filter: drop-shadow(0 0 20px rgba(249, 115, 22, 0.4)); }
         
-        /* 3-Tile Grid */
+        /* 3-Tile Grid Layout */
         .mode-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
         @media (max-width: 768px) { .mode-grid { grid-template-columns: 1fr; } }
         
@@ -40,14 +40,14 @@
         .glass-card h3 { margin: 0; font-weight: 800; font-size: 1.25rem; }
         .glass-card p { color: #a1a1aa; font-size: 0.9rem; margin-top: 0.5rem; }
 
-        /* Command Feedback Area */
+        /* Last Command Area (Single line, no shading) */
         #lastCommand { height: 40px; color: #facc15; font-weight: 600; text-align: center; margin-bottom: 1rem; }
 
-        /* Inventory List UI */
+        /* Inventory List (Tap to adjust) */
         .inventory-row { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem; background: var(--glass); border-radius: 1rem; border: 1px solid #27272a; margin-bottom: 0.75rem; }
         .qty-badge { background: var(--brand-gradient); padding: 0.5rem 1.5rem; border-radius: 0.75rem; font-weight: 800; cursor: pointer; }
 
-        /* Recording Button */
+        /* Record Button (Pulsing feedback) */
         #recordBtn { position: fixed; bottom: 40px; right: 40px; width: 80px; height: 80px; background: #ef4444; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; z-index: 1000; box-shadow: 0 0 20px rgba(239, 68, 68, 0.5); cursor: pointer; }
         .pulse { animation: pulse-red 2s infinite; }
         @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 25px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
@@ -64,28 +64,34 @@
             <div class="glass-card" onclick="startMode('new-setup')">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                 <h3>New Setup</h3>
-                <p>Upload prep sheets</p>
+                <p>OCR Prep Sheets</p>
             </div>
             <div class="glass-card" onclick="startMode('voice-mapping')">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
                 <h3>Voice Mapping</h3>
-                <p>Record item aliases</p>
+                <p>Set Item Aliases</p>
             </div>
             <div class="glass-card" onclick="startMode('daily-count')">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                 <h3>Daily Count</h3>
-                <p>Voice counting</p>
+                <p>Voice-Powered Path</p>
             </div>
         </div>
 
-        <div id="activeModeView" class="hidden">
-            <button onclick="location.reload()" style="background:none; border:none; color:#a1a1aa; cursor:pointer; margin-bottom: 20px;">← Back</button>
+        <div id="activeView" class="hidden">
+            <button onclick="location.reload()" style="background:none; border:none; color:#a1a1aa; cursor:pointer; margin-bottom: 20px;">← Back to Home</button>
+            
+            <div id="setupUI" class="hidden">
+                <div class="glass-card" onclick="document.getElementById('imgInput').click()">Tap to Upload Prep Sheets</div>
+                <input type="file" id="imgInput" multiple class="hidden" onchange="uploadImages(this.files)">
+            </div>
+
             <div id="lastCommand"></div>
             <div id="inventoryList"></div>
         </div>
     </div>
 
-    <button id="recordBtn" class="hidden" onclick="toggleVoice()">
+    <button id="recordBtn" class="hidden" onclick="toggleMic()">
         <svg width="32" height="32" fill="white" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
     </button>
 
@@ -96,38 +102,36 @@
         function startMode(mode) {
             currentMode = mode;
             document.getElementById('modeSelection').classList.add('hidden');
-            document.getElementById('activeModeView').classList.remove('hidden');
+            document.getElementById('activeView').classList.remove('hidden');
             
-            // Show mic only for voice modes
-            if(mode === 'daily-count' || mode === 'voice-mapping') {
-                document.getElementById('recordBtn').classList.remove('hidden');
-            }
-            renderList();
+            if(mode === 'new-setup') document.getElementById('setupUI').classList.remove('hidden');
+            if(mode === 'daily-count' || mode === 'voice-mapping') document.getElementById('recordBtn').classList.remove('hidden');
+            render();
         }
 
-        // Inline manual override
-        function manualAdjust(item) {
-            let newVal = prompt(`Set quantity for ${item}:`, inventory[item] || 0);
-            if(newVal !== null) {
-                inventory[item] = parseFloat(newVal) || 0;
-                renderList();
+        // Inline manual adjust
+        function adjust(item) {
+            let val = prompt(`Set quantity for ${item}:`, inventory[item] || 0);
+            if(val !== null) {
+                inventory[item] = parseFloat(val) || 0;
+                render();
             }
         }
 
-        function renderList() {
-            const container = document.getElementById('inventoryList');
-            container.innerHTML = Object.keys(inventory).length === 0 
-                ? `<div style="text-align:center; color:#52525b; margin-top:2rem;">Upload sheets in New Setup to start.</div>`
+        function render() {
+            const list = document.getElementById('inventoryList');
+            list.innerHTML = Object.keys(inventory).length === 0 
+                ? `<div style="text-align:center; color:#52525b; margin-top:2rem;">Inventory is empty. Use New Setup to begin.</div>`
                 : Object.keys(inventory).map(item => `
                     <div class="inventory-row">
                         <span>${item}</span>
-                        <div class="qty-badge" onclick="manualAdjust('${item}')">${inventory[item]}</div>
+                        <div class="qty-badge" onclick="adjust('${item}')">${inventory[item]}</div>
                     </div>
                 `).join('');
         }
 
-        // Verb + Quantity Command Processing
-        function parseCommand(transcript) {
+        // Verb + Quantity Parsing
+        function process(transcript) {
             const words = transcript.toLowerCase().split(' ');
             const verbs = ['add', 'subtract', 'set'];
             const verb = words.find(v => verbs.includes(v));
@@ -139,16 +143,21 @@
                 else if (verb === 'subtract') inventory[item] = (inventory[item] || 0) - qty;
                 else if (verb === 'set') inventory[item] = qty;
                 
-                document.getElementById('lastCommand').innerText = `✓ ${verb.toUpperCase()} ${qty} → ${item}`;
-                renderList();
+                document.getElementById('lastCommand').innerText = `✓ ${verb.toUpperCase()} ${qty} -> ${item}`;
+                render();
             }
         }
 
         let recording = false;
-        function toggleVoice() {
+        function toggleMic() {
             const btn = document.getElementById('recordBtn');
             recording = !recording;
             recording ? btn.classList.add('pulse') : btn.classList.remove('pulse');
+        }
+
+        async function uploadImages(files) {
+            // Backend call to /parse would happen here
+            alert(`${files.length} images ready to parse.`);
         }
     </script>
 </body>
