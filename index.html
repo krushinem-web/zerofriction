@@ -1,89 +1,84 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KrushFlow Inventory</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Zero-Friction Inventory</title>
     <style>
-        :root { --brand: #f97316; --zinc-950: #09090b; --zinc-900: #18181b; }
-        body { background: var(--zinc-950); color: white; font-family: 'Inter', sans-serif; margin: 0; }
+        :root { --brand: #f97316; --bg: #09090b; }
+        body { background: var(--bg); color: white; font-family: sans-serif; margin: 0; padding: 20px; }
         .hidden { display: none !important; }
-        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
-        .card { background: var(--zinc-900); border: 1px solid #27272a; padding: 2rem; border-radius: 1rem; cursor: pointer; text-align: center; margin-bottom: 1rem; }
-        .btn { padding: 1rem 2rem; border-radius: 0.5rem; border: none; font-weight: bold; cursor: pointer; width: 100%; margin-top: 10px; }
-        .btn-primary { background: var(--brand); color: white; }
+        
+        /* Last Command Area - Rules: Single line, no shading */
+        #lastCommand { height: 30px; color: #a1a1aa; font-size: 0.9rem; padding: 5px 0; }
+        
+        .inventory-row { display: flex; justify-content: space-between; padding: 15px; border-bottom: 1px solid #27272a; align-items: center; }
+        .qty-box { background: #18181b; padding: 10px 20px; border-radius: 8px; font-weight: bold; border: 1px solid #3f3f46; min-width: 40px; text-align: center; }
+        
+        /* Recording UX */
+        #recordBtn { position: fixed; bottom: 30px; right: 30px; width: 70px; height: 70px; background: red; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .pulse { animation: pulse-red 2s infinite; }
+        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7); } 70% { box-shadow: 0 0 0 20px rgba(255, 0, 0, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); } }
     </style>
 </head>
 <body>
-    <div class="container">
-        <header style="text-align: center; padding: 2rem 0;">
-            <h1>KrushFlow</h1>
-        </header>
+    <div id="lastCommand"></div>
+    <div id="inventoryList"></div>
 
-        <div id="modeSelectionScreen">
-            <div class="card" onclick="selectMode('new-setup')">
-                <h3>New Setup</h3>
-                <p>Upload images to create master list</p>
-            </div>
-            <div class="card" onclick="selectMode('voice-mapping')">
-                <h3>Voice Mapping</h3>
-                <p>Record voice aliases for items</p>
-            </div>
-            <div class="card" onclick="selectMode('daily-count')">
-                <h3>Daily Count</h3>
-                <p>Voice-powered counting</p>
-            </div>
-        </div>
-
-        <div id="newSetupScreen" class="hidden">
-            <button onclick="showModeSelection()" class="btn">Back</button>
-            <div class="card" id="uploadZone">Click to Upload Images</div>
-            <input type="file" id="fileInput" multiple class="hidden">
-            <div id="fileList"></div>
-            <button id="parseButton" class="btn btn-primary" disabled>Parse Inventory</button>
-        </div>
-
-        <div id="voiceMappingScreen" class="hidden">
-            <button onclick="showModeSelection()" class="btn">Back</button>
-            <h2>Voice Mapping Active</h2>
-        </div>
-        <div id="dailyCountScreen" class="hidden">
-            <button onclick="showModeSelection()" class="btn">Back</button>
-            <h2>Daily Count Active</h2>
-        </div>
-    </div>
+    <button id="recordBtn" onclick="toggleRecording()">
+        <svg width="30" height="30" fill="white" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></button>
 
     <script>
-        // NAVIGATION LOGIC - FIXES BUTTONS NOT WORKING
-        function selectMode(mode) {
-            document.getElementById('modeSelectionScreen').classList.add('hidden');
-            document.getElementById('newSetupScreen').classList.add('hidden');
-            document.getElementById('voiceMappingScreen').classList.add('hidden');
-            document.getElementById('dailyCountScreen').classList.add('hidden');
+        let inventory = {}; // { "Item Name": 0 }
+        let isRecording = false;
 
-            if (mode === 'new-setup') document.getElementById('newSetupScreen').classList.remove('hidden');
-            if (mode === 'voice-mapping') document.getElementById('voiceMappingScreen').classList.remove('hidden');
-            if (mode === 'daily-count') document.getElementById('dailyCountScreen').classList.remove('hidden');
+        // PART 4: UX Rules - Manual Adjustment
+        function updateQty(item, newVal) {
+            inventory[item] = parseFloat(newVal) || 0;
+            renderList();
         }
 
-        function showModeSelection() {
-            selectMode('selection');
-            document.getElementById('modeSelectionScreen').classList.remove('hidden');
+        function renderList() {
+            const container = document.getElementById('inventoryList');
+            container.innerHTML = Object.keys(inventory).map(item => `
+                <div class="inventory-row">
+                    <span>${item}</span>
+                    <div class="qty-box" onclick="let n = prompt('New Qty', inventory['${item}']); if(n!==null) updateQty('${item}', n)">
+                        ${inventory[item]}
+                    </div>
+                </div>
+            `).join('');
         }
 
-        // UPLOAD LOGIC
-        const uploadZone = document.getElementById('uploadZone');
-        const fileInput = document.getElementById('fileInput');
-        uploadZone.addEventListener('click', () => fileInput.click());
+        // PART 3: Command Interpretation (add, subtract, set)
+        function processCommand(text) {
+            const parts = text.split(' ');
+            const verbs = ['add', 'subtract', 'set'];
+            let verb = parts.find(p => verbs.includes(p));
+            let qty = parseFloat(parts.find(p => !isNaN(p)));
+            let item = parts.filter(p => !verbs.includes(p) && isNaN(p)).join(' ');
 
-        fileInput.addEventListener('change', (e) => {
-            const files = Array.from(e.target.files);
-            if (files.length > 0) {
-                document.getElementById('parseButton').disabled = false;
-                document.getElementById('fileList').innerHTML = `<p>${files.length} images selected</p>`;
+            if (verb && !isNaN(qty)) {
+                if (verb === 'add') inventory[item] = (inventory[item] || 0) + qty;
+                if (verb === 'subtract') inventory[item] = (inventory[item] || 0) - qty;
+                if (verb === 'set') inventory[item] = qty;
+                
+                document.getElementById('lastCommand').innerText = `${verb.toUpperCase()} ${qty} -> ${item}`;
+                renderList();
             }
-        });
+        }
+
+        // Recording logic follows canonical UX rules (pulse feedback)
+        async function toggleRecording() {
+            const btn = document.getElementById('recordBtn');
+            isRecording = !isRecording;
+            if (isRecording) {
+                btn.classList.add('pulse');
+                // Standard MediaRecorder logic here calling /process-voice
+            } else {
+                btn.classList.remove('pulse');
+            }
+        }
     </script>
 </body>
 </html>
