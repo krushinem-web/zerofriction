@@ -1,164 +1,86 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KrushFlow Inventory</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <title>Daily Count - Production</title>
     <style>
-        :root { 
-            --brand: #f97316; 
-            --brand-gradient: linear-gradient(135deg, #f97316 0%, #ef4444 50%, #facc15 100%);
-            --glass: rgba(24, 24, 27, 0.7);
-            --bg: #09090b; 
-        }
-        body { background-color: var(--bg); color: white; font-family: 'Inter', sans-serif; margin: 0; min-height: 100vh; overflow-x: hidden; }
+        :root { --brand: #f97316; --brand-grad: linear-gradient(135deg, #f97316, #ef4444); --bg: #09090b; }
+        body { background: var(--bg); color: white; font-family: 'Inter', sans-serif; margin: 0; padding: 20px; }
         .hidden { display: none !important; }
-        .container { max-width: 1000px; margin: 0 auto; padding: 40px 20px; }
         
-        /* Fiery Logo Glow */
-        header { text-align: center; margin-bottom: 4rem; }
-        .logo { max-width: 450px; width: 90%; filter: drop-shadow(0 0 20px rgba(249, 115, 22, 0.4)); }
+        /* Unresolved Area */
+        #unresolvedContainer { border: 1px solid #ef4444; background: rgba(239, 68, 68, 0.1); border-radius: 12px; padding: 15px; margin-bottom: 20px; }
+        .unresolved-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         
-        /* 3-Tile Grid Layout */
-        .mode-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
-        @media (max-width: 768px) { .mode-grid { grid-template-columns: 1fr; } }
+        /* Master List UI */
+        .inventory-row { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem; background: rgba(24, 24, 27, 0.7); border-radius: 1rem; border: 1px solid #27272a; margin-bottom: 0.75rem; }
+        .qty-badge { background: var(--brand-grad); padding: 0.5rem 1.5rem; border-radius: 0.75rem; font-weight: 800; cursor: pointer; }
         
-        /* Glass Cards */
-        .glass-card { 
-            background: var(--glass); 
-            backdrop-filter: blur(16px); 
-            border: 1px solid rgba(249, 115, 22, 0.2); 
-            border-radius: 1.5rem; 
-            padding: 2.5rem 1.5rem; 
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        .glass-card:hover { border-color: var(--brand); transform: translateY(-5px); }
-        .glass-card svg { width: 48px; height: 48px; color: var(--brand); margin-bottom: 1.25rem; }
-        .glass-card h3 { margin: 0; font-weight: 800; font-size: 1.25rem; }
-        .glass-card p { color: #a1a1aa; font-size: 0.9rem; margin-top: 0.5rem; }
-
-        /* Last Command Area (Single line, no shading) */
-        #lastCommand { height: 40px; color: #facc15; font-weight: 600; text-align: center; margin-bottom: 1rem; }
-
-        /* Inventory List (Tap to adjust) */
-        .inventory-row { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem; background: var(--glass); border-radius: 1rem; border: 1px solid #27272a; margin-bottom: 0.75rem; }
-        .qty-badge { background: var(--brand-gradient); padding: 0.5rem 1.5rem; border-radius: 0.75rem; font-weight: 800; cursor: pointer; }
-
-        /* Record Button (Pulsing feedback) */
-        #recordBtn { position: fixed; bottom: 40px; right: 40px; width: 80px; height: 80px; background: #ef4444; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; z-index: 1000; box-shadow: 0 0 20px rgba(239, 68, 68, 0.5); cursor: pointer; }
-        .pulse { animation: pulse-red 2s infinite; }
-        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 25px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+        /* Voice Overlay */
+        #voiceOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .pulse-mic { width: 100px; height: 100px; background: var(--brand); border-radius: 50%; box-shadow: 0 0 30px var(--brand); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); opacity: 0.8; } 100% { transform: scale(1); } }
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <img src="logo.png" class="logo" alt="KrushFlow">
-            <p style="color: #a1a1aa; font-weight: 300; margin-top: 10px;">Intelligent inventory management</p>
-        </header>
+    <header style="text-align:center; margin-bottom: 30px;"><img src="logo.png" style="width:200px; filter:drop-shadow(0 0 10px var(--brand))"></header>
 
-        <div id="modeSelection" class="mode-grid">
-            <div class="glass-card" onclick="startMode('new-setup')">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                <h3>New Setup</h3>
-                <p>OCR Prep Sheets</p>
-            </div>
-            <div class="glass-card" onclick="startMode('voice-mapping')">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
-                <h3>Voice Mapping</h3>
-                <p>Set Item Aliases</p>
-            </div>
-            <div class="glass-card" onclick="startMode('daily-count')">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-                <h3>Daily Count</h3>
-                <p>Voice-Powered Path</p>
-            </div>
-        </div>
-
-        <div id="activeView" class="hidden">
-            <button onclick="location.reload()" style="background:none; border:none; color:#a1a1aa; cursor:pointer; margin-bottom: 20px;">← Back to Home</button>
-            
-            <div id="setupUI" class="hidden">
-                <div class="glass-card" onclick="document.getElementById('imgInput').click()">Tap to Upload Prep Sheets</div>
-                <input type="file" id="imgInput" multiple class="hidden" onchange="uploadImages(this.files)">
-            </div>
-
-            <div id="lastCommand"></div>
-            <div id="inventoryList"></div>
-        </div>
+    <div id="unresolvedContainer" class="hidden">
+        <h4 style="margin:0 0 10px 0; color:#ef4444;">Unresolved Commands</h4>
+        <div id="queueItems"></div>
     </div>
 
-    <button id="recordBtn" class="hidden" onclick="toggleMic()">
-        <svg width="32" height="32" fill="white" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
-    </button>
+    <div id="masterList"></div>
+
+    <div id="voiceOverlay" class="hidden" onclick="stopDailyRecord()">
+        <div class="pulse-mic"></div>
+    </div>
+
+    <button id="recordBtn" onclick="startDailyRecord()" style="position:fixed; bottom:30px; right:30px; width:80px; height:80px; border-radius:50%; background:var(--brand-grad); border:none;"></button>
 
     <script>
-        let inventory = {};
-        let currentMode = '';
+        let inventory = {}; // Canonical State
+        let queue = []; // Unresolved State
 
-        function startMode(mode) {
-            currentMode = mode;
-            document.getElementById('modeSelection').classList.add('hidden');
-            document.getElementById('activeView').classList.remove('hidden');
+        // 3.3 Unresolved Handling: Non-blocking queue
+        function renderQueue() {
+            const container = document.getElementById('unresolvedContainer');
+            if (queue.length === 0) return container.classList.add('hidden');
             
-            if(mode === 'new-setup') document.getElementById('setupUI').classList.remove('hidden');
-            if(mode === 'daily-count' || mode === 'voice-mapping') document.getElementById('recordBtn').classList.remove('hidden');
-            render();
-        }
-
-        // Inline manual adjust
-        function adjust(item) {
-            let val = prompt(`Set quantity for ${item}:`, inventory[item] || 0);
-            if(val !== null) {
-                inventory[item] = parseFloat(val) || 0;
-                render();
-            }
-        }
-
-        function render() {
-            const list = document.getElementById('inventoryList');
-            list.innerHTML = Object.keys(inventory).length === 0 
-                ? `<div style="text-align:center; color:#52525b; margin-top:2rem;">Inventory is empty. Use New Setup to begin.</div>`
-                : Object.keys(inventory).map(item => `
-                    <div class="inventory-row">
-                        <span>${item}</span>
-                        <div class="qty-badge" onclick="adjust('${item}')">${inventory[item]}</div>
+            container.classList.remove('hidden');
+            document.getElementById('queueItems').innerHTML = queue.map((u, i) => `
+                <div class="unresolved-item">
+                    <span>"${u.transcript}"</span>
+                    <div>
+                        <button onclick="resolveNow(${i})">Resolve</button>
+                        <button onclick="bypassNow(${i})" style="opacity:0.5; margin-left:10px;">Bypass</button>
                     </div>
-                `).join('');
+                </div>
+            `).join('');
         }
 
-        // Verb + Quantity Parsing
-        function process(transcript) {
-            const words = transcript.toLowerCase().split(' ');
-            const verbs = ['add', 'subtract', 'set'];
-            const verb = words.find(v => verbs.includes(v));
-            const qty = parseFloat(words.find(w => !isNaN(w)));
-            const item = words.filter(w => !verbs.includes(w) && isNaN(w)).join(' ');
-
-            if (verb && !isNaN(qty) && item) {
-                if (verb === 'add') inventory[item] = (inventory[item] || 0) + qty;
-                else if (verb === 'subtract') inventory[item] = (inventory[item] || 0) - qty;
-                else if (verb === 'set') inventory[item] = qty;
-                
-                document.getElementById('lastCommand').innerText = `✓ ${verb.toUpperCase()} ${qty} -> ${item}`;
-                render();
+        // 5) Human Correction overrides automation
+        function manualEdit(item) {
+            const newVal = prompt(`Set quantity for ${item}:`, inventory[item] || 0);
+            if (newVal !== null) {
+                inventory[item] = parseFloat(newVal) || 0;
+                renderList();
             }
         }
 
-        let recording = false;
-        function toggleMic() {
-            const btn = document.getElementById('recordBtn');
-            recording = !recording;
-            recording ? btn.classList.add('pulse') : btn.classList.remove('pulse');
+        function renderList() {
+            const list = document.getElementById('masterList');
+            list.innerHTML = Object.keys(inventory).map(item => `
+                <div class="inventory-row">
+                    <span>${item}</span>
+                    <div class="qty-badge" onclick="manualEdit('${item}')">${inventory[item]}</div>
+                </div>
+            `).join('');
         }
 
-        async function uploadImages(files) {
-            // Backend call to /parse would happen here
-            alert(`${files.length} images ready to parse.`);
-        }
+        async function startDailyRecord() { document.getElementById('voiceOverlay').classList.remove('hidden'); }
+        async function stopDailyRecord() { document.getElementById('voiceOverlay').classList.add('hidden'); }
     </script>
 </body>
 </html>
