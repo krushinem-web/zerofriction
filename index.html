@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>KrushFlow Inventory</title>
-    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -13,239 +12,126 @@
         :root {
             --brand: #f97316;
             --brand-gradient: linear-gradient(135deg, #f97316 0%, #ef4444 50%, #facc15 100%);
-            /* Updated to White Theme */
             --bg-page: #ffffff;
-            --glass: rgba(255, 255, 255, 0.8);
-            --glass-border: rgba(249, 115, 22, 0.3);
+            --glass: rgba(255, 255, 255, 0.9);
+            --glass-border: rgba(249, 115, 22, 0.25);
             --text-main: #18181b;
             --text-muted: #71717a;
-            --zinc-900: #18181b;
-            --zinc-800: #27272a;
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-            touch-action: manipulation;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
         body {
             background-color: var(--bg-page);
             color: var(--text-main);
-            font-family: 'Inter', -apple-system, sans-serif;
-            line-height: 1.5;
+            font-family: 'Inter', sans-serif;
             min-height: 100vh;
-            overflow-x: hidden;
-            /* Light ambient glow */
             background-image: 
-                radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.08) 0%, transparent 50%),
-                radial-gradient(circle at 100% 100%, rgba(239, 68, 68, 0.08) 0%, transparent 50%);
+                radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 100% 100%, rgba(239, 68, 68, 0.05) 0%, transparent 40%);
         }
 
-        .hidden { 
-            display: none !important; 
-            pointer-events: none !important;
-            visibility: hidden !important;
+        .container { max-width: 900px; margin: 0 auto; padding: 2rem; }
+
+        header {
+            text-align: center;
+            padding: 2rem 0 3rem;
         }
 
-        /* Restored Fiery Glassmorphism Cards */
+        .logo-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .logo-wrapper img {
+            max-width: 280px;
+            height: auto;
+        }
+
+        .tagline {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            font-weight: 300;
+        }
+
+        .mode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; }
+
         .glass-card {
             background: var(--glass);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             border: 1px solid var(--glass-border);
-            border-radius: 1.25rem;
-            padding: 2rem 1.5rem;
-            box-shadow: 0 10px 25px -5px rgba(249, 115, 22, 0.1);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            cursor: pointer !important;
-            pointer-events: auto !important;
-            position: relative;
-            z-index: 10;
+            border-radius: 1.5rem;
+            padding: 2.5rem 1.5rem;
             text-align: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+            cursor: pointer;
             display: flex;
             flex-direction: column;
             align-items: center;
         }
 
         .glass-card:hover {
+            transform: translateY(-5px);
             border-color: var(--brand);
-            transform: translateY(-4px);
-            box-shadow: 0 20px 30px -10px rgba(249, 115, 22, 0.2);
+            box-shadow: 0 12px 30px rgba(249, 115, 22, 0.15);
         }
 
-        .icon-container {
-            width: 64px;
-            height: 64px;
-            margin-bottom: 1.5rem;
-            color: var(--brand);
-        }
+        .icon-container { width: 56px; height: 56px; margin-bottom: 1.5rem; color: var(--brand); }
+        .hidden { display: none !important; }
 
-        .text-fiery {
-            background: var(--brand-gradient);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            font-weight: 800;
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 1rem 1.5rem;
-            border-radius: 1rem;
-            font-weight: 700;
-            cursor: pointer !important;
-            transition: all 0.2s;
-            width: 100%;
-            gap: 0.5rem;
-        }
-
-        .btn-primary { background: var(--brand-gradient); color: white; border: none; }
-        .btn-record { background: #ef4444; color: white; animation: pulse-red 2s infinite; }
-
-        @keyframes pulse-red {
-            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
-        }
-
-        /* Microphone Overlay - Keeping high contrast dark for focus */
         .mic-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.95);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
+            position: fixed; inset: 0; background: rgba(0,0,0,0.94);
+            display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999;
         }
-
-        .mic-pulse { position: relative; width: 150px; height: 150px; }
-        .mic-core {
-            position: absolute; inset: 0; margin: auto;
-            width: 80px; height: 80px; border-radius: 50%;
-            background: var(--brand-gradient);
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 0 30px rgba(249, 115, 22, 0.6);
-        }
-
-        .ring {
-            position: absolute; inset: 0; margin: auto;
-            width: 140px; height: 140px; border-radius: 50%;
-            border: 2px solid rgba(249, 115, 22, 0.5);
-            animation: ring-pulse 1.5s ease-out infinite;
-        }
-        @keyframes ring-pulse { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(1.8); opacity: 0; } }
-
-        .container { max-width: 900px; margin: 0 auto; padding: 2rem; }
-        .mode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <header class="text-center mb-12">
-            <h1 class="text-fiery" style="font-size: 3rem; margin-bottom: 0.5rem;">KRUSHFLOW</h1>
-            <p style="color: var(--text-muted); font-weight: 300;">Intelligent inventory management</p>
+        <header>
+            <div class="logo-wrapper">
+                <img src="logo.png" alt="KrushFlow Logo">
+            </div>
+            <p class="tagline">Intelligent inventory management</p>
         </header>
 
-        <div id="modeSelectionScreen">
-            <div class="mode-grid">
-                <div onclick="selectMode('new-setup')" class="glass-card">
+        <main>
+            <div id="modeSelectionScreen" class="mode-grid">
+                <div class="glass-card" onclick="selectMode('new-setup')">
                     <div class="icon-container">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                     </div>
-                    <h3 style="font-size: 1.5rem; margin-bottom: 0.75rem;">New Setup</h3>
-                    <p style="color: var(--text-muted);">Upload prep sheets to create your list</p>
+                    <h3>New Setup</h3>
+                    <p style="color: var(--text-muted); margin-top: 0.5rem;">Create inventory master list</p>
                 </div>
 
-                <div onclick="selectMode('voice-mapping')" class="glass-card">
+                <div class="glass-card" onclick="selectMode('voice-mapping')">
                     <div class="icon-container">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
                     </div>
-                    <h3 style="font-size: 1.5rem; margin-bottom: 0.75rem;">Voice Mapping</h3>
-                    <p style="color: var(--text-muted);">Record voice aliases for accuracy</p>
+                    <h3>Voice Mapping</h3>
+                    <p style="color: var(--text-muted); margin-top: 0.5rem;">Train custom voice aliases</p>
                 </div>
 
-                <div onclick="selectMode('daily-count')" class="glass-card">
+                <div class="glass-card" onclick="selectMode('daily-count')">
                     <div class="icon-container">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                     </div>
-                    <h3 style="font-size: 1.5rem; margin-bottom: 0.75rem;">Daily Count</h3>
-                    <p style="color: var(--text-muted);">Count inventory using voice</p>
+                    <h3>Daily Count</h3>
+                    <p style="color: var(--text-muted); margin-top: 0.5rem;">Voice-powered counting</p>
                 </div>
             </div>
-        </div>
-
-        <div id="voiceInterface" class="hidden glass-card" style="margin-top: 2rem;">
-            <button onclick="showHome()" class="btn" style="background: #f4f4f5; color: #18181b; width: auto; margin-bottom: 2rem;">← Back Home</button>
-            <h2 id="interfaceTitle" style="margin-bottom: 1.5rem;">Voice Mapping</h2>
-            <button id="recordButton" class="btn btn-record">Start Voice Recording</button>
-        </div>
-    </div>
-
-    <div id="microphoneOverlay" class="mic-overlay hidden" onclick="stopRecording()">
-        <div class="mic-pulse">
-            <div class="ring"></div>
-            <div class="mic-core">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="white"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
-            </div>
-        </div>
-        <p style="color: white; margin-top: 2rem; font-weight: 600;">LISTENING...</p>
-        <p style="color: rgba(255,255,255,0.5); font-size: 0.8rem; margin-top: 0.5rem;">Tap anywhere to stop</p>
+        </main>
     </div>
 
     <script>
-        let isRecording = false;
-        let mediaRecorder = null;
-        let audioChunks = [];
-
         function selectMode(mode) {
-            document.getElementById('modeSelectionScreen').classList.add('hidden');
-            document.getElementById('voiceInterface').classList.remove('hidden');
-            document.getElementById('interfaceTitle').textContent = mode.replace('-', ' ').toUpperCase();
+            console.log("Selected mode:", mode);
         }
-
-        function showHome() {
-            document.getElementById('modeSelectionScreen').classList.remove('hidden');
-            document.getElementById('voiceInterface').classList.add('hidden');
-        }
-
-        async function startRecording() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
-                audioChunks = [];
-                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-                mediaRecorder.onstop = () => {
-                    stream.getTracks().forEach(track => track.stop());
-                };
-                mediaRecorder.start();
-                isRecording = true;
-                document.getElementById('microphoneOverlay').classList.remove('hidden');
-                document.getElementById('recordButton').textContent = "Stop Recording";
-            } catch (err) {
-                alert("Please enable microphone access.");
-            }
-        }
-
-        function stopRecording() {
-            if (mediaRecorder && isRecording) {
-                mediaRecorder.stop();
-                isRecording = false;
-                document.getElementById('microphoneOverlay').classList.add('hidden');
-                document.getElementById('recordButton').textContent = "Start Voice Recording";
-            }
-        }
-
-        document.getElementById('recordButton').addEventListener('click', () => {
-            if (isRecording) stopRecording();
-            else startRecording();
-        });
     </script>
 </body>
 </html>
