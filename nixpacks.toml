@@ -2,10 +2,12 @@
 nixPkgs = ["nodejs_20", "pnpm-9_x"]
 
 [phases.install]
-cmds = ["pnpm install"]
+dependsOn = ["setup"]
+cmds = ["pnpm install --frozen-lockfile"]
 
 [phases.build]
-cmds = []
+dependsOn = ["install"]
+cmds = ["echo 'No build step required'"]
 
 [start]
 cmd = "node server.js"
