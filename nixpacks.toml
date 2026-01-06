@@ -1,8 +1,15 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "pnpm"]
+nixPkgs = ["nodejs_20"]
+nixLibs = ["glibc"]
+nixOverlays = []
 
 [phases.install]
-cmds = ["pnpm install"]
+dependsOn = ["setup"]
+cmds = [
+  "corepack enable",
+  "corepack prepare pnpm@10.27.0 --activate",
+  "pnpm install --prod=false"
+]
 
 [start]
 cmd = "node server.js"

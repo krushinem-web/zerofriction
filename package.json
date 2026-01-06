@@ -5,7 +5,6 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "install": "pnpm install",
     "git:push": "bash scripts/push_to_github.sh"
   },
   "packageManager": "pnpm@10.27.0",
