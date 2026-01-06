@@ -710,7 +710,30 @@
                         <!-- Items will be rendered here as cards -->
                     </div>
                     
-                    <div class="flex gap-4">
+                    <!-- Project Save Controls -->
+                    <div id="projectSaveControls" class="mt-6 p-4 bg-zinc-800/40 rounded-xl border border-zinc-700">
+                        <label class="block text-sm font-medium text-zinc-300 mb-2">Project Name (required to save)</label>
+                        <input 
+                            id="projectNameInput" 
+                            type="text" 
+                            placeholder="e.g., Main Kitchen Inventory" 
+                            class="w-full px-4 py-3 bg-zinc-900 border border-zinc-700 rounded-lg text-white focus:border-orange-500 focus:outline-none mb-3"
+                        />
+                        <div class="flex gap-3">
+                            <button id="saveListButton" class="btn btn-primary flex-1">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+                                </svg>
+                                Save List (Server)
+                            </button>
+                            <button id="continueToVoiceMappingButton" class="btn btn-glass flex-1" disabled>
+                                Continue to Voice Mapping →
+                            </button>
+                        </div>
+                        <div id="saveStatus" class="hidden mt-3 p-3 rounded-lg text-sm"></div>
+                    </div>
+                    
+                    <div class="flex gap-4 mt-4">
                         <button id="downloadButton" class="btn btn-secondary flex items-center justify-center gap-3">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
@@ -724,6 +747,7 @@
                             Download JSON
                         </button>
                     </div>
+                    <p class="text-xs text-zinc-500 mt-2">Optional: Download list before or after saving to server</p>
                 </div>
             </div>
         </div>
@@ -1362,6 +1386,12 @@
         let audioChunks = [];
         let isRecording = false;
         let inventorySourceWasParsed = false;
+        
+        // Master list management state
+        let masterListLocked = false;
+        let currentProjectName = null;
+        let listSaved = false;
+        let lastRecordedPhrase = null;
 
         // ============================================
         // MASTER ALIAS PERSISTENCE (localStorage)
@@ -1677,12 +1707,7 @@
                 const estimateMinutes = Math.max(5, Math.round(selectedFiles.length * 1.5));
                 showMicroBanner(`✓ Inventory ready. Saved ~${estimateMinutes} minutes of manual entry.`, 'success');
                 
-                // OPTION A v2: Auto-navigate to Voice Mapping after 2 seconds
-                console.log('[Option A] Auto-navigating to Voice Mapping in 2 seconds...');
-                setTimeout(() => {
-                    selectMode('voice-mapping');
-                    console.log('[Option A] Auto-navigation complete');
-                }, 2000);
+                // Auto-navigation removed - user must manually navigate after editing/saving
                 
             } catch (error) {
                 console.error('Error:', error);
@@ -1714,15 +1739,16 @@
                 const isSelected = window.selectedItemId === item.id;
                 const countColor = item.count > 0 ? 'text-orange-400' : 'text-zinc-600';
                 const borderClass = isSelected ? 'border-2 border-orange-400' : 'border-2 border-transparent';
+                const editButton = !masterListLocked ? `<button onclick="event.stopPropagation(); editItemName('${item.id}')" class="px-2 py-1 bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 rounded text-xs font-medium transition-colors ml-2">Edit</button>` : '';
                 
                 return `
                     <div 
-                        class="item-card ${borderClass} bg-zinc-800/40 rounded-2xl p-5 flex items-center justify-between cursor-pointer hover:bg-zinc-800/60 transition-all shadow-lg"
+                        class="item-card ${borderClass} bg-zinc-800/40 rounded-2xl p-5 flex items-center justify-between hover:bg-zinc-800/60 transition-all shadow-lg"
                         data-item-id="${item.id}"
-                        onclick="selectItem('${item.id}')"
                     >
                         <div class="item-name text-white text-lg font-bold flex-1">
                             ${item.name}
+                            ${editButton}
                         </div>
                         <div 
                             class="item-count ${countColor} text-2xl font-bold min-w-[60px] text-right"
@@ -1751,6 +1777,30 @@
                     item.count = parsed;
                     renderItemCards();
                 }
+            }
+        }
+        
+        function editItemName(itemId) {
+            if (masterListLocked) {
+                alert('List is locked. Cannot edit item names after saving.');
+                return;
+            }
+            
+            const item = window.scanItems.find(i => i.id === itemId);
+            if (!item) return;
+            
+            const newName = prompt(`Edit item name:`, item.name);
+            if (newName !== null) {
+                // Validate: trim and collapse whitespace
+                const trimmed = newName.trim().replace(/\s+/g, ' ');
+                if (trimmed === '') {
+                    alert('Item name cannot be empty');
+                    return;
+                }
+                item.name = trimmed;
+                // Update ID to match new name
+                item.id = trimmed.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                renderItemCards();
             }
         }
 
@@ -1819,6 +1869,78 @@
                 a.click();
             });
         }
+        
+        // Save List to Server button
+        document.getElementById('saveListButton').addEventListener('click', async () => {
+            const projectNameInput = document.getElementById('projectNameInput');
+            const projectName = projectNameInput.value.trim();
+            const saveStatus = document.getElementById('saveStatus');
+            const continueBtn = document.getElementById('continueToVoiceMappingButton');
+            
+            if (!projectName) {
+                saveStatus.textContent = 'Please enter a project name';
+                saveStatus.className = 'mt-3 p-3 rounded-lg text-sm bg-red-500/20 text-red-400';
+                saveStatus.classList.remove('hidden');
+                return;
+            }
+            
+            if (!window.scanItems || window.scanItems.length === 0) {
+                saveStatus.textContent = 'No items to save';
+                saveStatus.className = 'mt-3 p-3 rounded-lg text-sm bg-red-500/20 text-red-400';
+                saveStatus.classList.remove('hidden');
+                return;
+            }
+            
+            try {
+                const items = window.scanItems.map(item => item.name);
+                const response = await fetch('/projects/save-master-list', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ projectName, items })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to save list');
+                }
+                
+                // Lock the list
+                masterListLocked = true;
+                currentProjectName = projectName;
+                listSaved = true;
+                
+                // Update UI
+                saveStatus.textContent = `✓ List saved successfully as "${projectName}"`;
+                saveStatus.className = 'mt-3 p-3 rounded-lg text-sm bg-green-500/20 text-green-400';
+                saveStatus.classList.remove('hidden');
+                
+                // Disable save button and project name input
+                document.getElementById('saveListButton').disabled = true;
+                projectNameInput.disabled = true;
+                
+                // Enable continue button
+                continueBtn.disabled = false;
+                
+                // Re-render to hide edit buttons
+                renderItemCards();
+                
+            } catch (error) {
+                console.error('Save error:', error);
+                saveStatus.textContent = `Error: ${error.message}`;
+                saveStatus.className = 'mt-3 p-3 rounded-lg text-sm bg-red-500/20 text-red-400';
+                saveStatus.classList.remove('hidden');
+            }
+        });
+        
+        // Continue to Voice Mapping button
+        document.getElementById('continueToVoiceMappingButton').addEventListener('click', () => {
+            if (!listSaved) {
+                alert('Please save the list first');
+                return;
+            }
+            selectMode('voice-mapping');
+        });
 
         function showError(message) {
             errorDiv.textContent = message;
@@ -2184,6 +2306,7 @@
 
         function selectInventoryItem(index) {
             currentItemIndex = index;
+            lastRecordedPhrase = null; // Reset when changing items
             renderInventoryList();
             updateVoiceStatus();
             updateCurrentPhrases();
@@ -2200,9 +2323,11 @@
                 statusDiv.className = 'bg-zinc-800/50 rounded-xl p-6 mb-6 text-center';
             } else {
                 const item = inventoryItems[currentItemIndex];
+                const recordingDisplay = lastRecordedPhrase ? `<p class="text-orange-400 mt-2">Recording: "${lastRecordedPhrase}"</p>` : '';
                 statusDiv.innerHTML = `
                     <h4 class="text-xl font-semibold mb-2">Current item: ${item}</h4>
-                    <p class="text-zinc-400">${isRecording ? '🎙️ Recording... Speak now!' : 'Press "Record Voice Alias" to start'}</p>
+                    <p class="text-zinc-400">${isRecording ? '🎙️ Recording... Speak now!' : 'Press "Record Voice Alias" to start'}</p>
+                    ${recordingDisplay}
                 `;
                 statusDiv.className = isRecording ? 
                     'bg-red-500/20 border border-red-500/50 rounded-xl p-6 mb-6 text-center' : 
@@ -2399,6 +2524,10 @@
                 if (!aliasData[item].includes(transcribedPhrase)) {
                     aliasData[item].push(transcribedPhrase);
                 }
+                
+                // Store last recorded phrase and update status display
+                lastRecordedPhrase = transcribedPhrase;
+                updateVoiceStatus();
 
                 renderInventoryList();
                 updateCurrentPhrases();

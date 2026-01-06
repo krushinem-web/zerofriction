@@ -4,7 +4,8 @@
   "description": "AI-powered restaurant inventory management",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "git:push": "bash scripts/push_to_github.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.18.0",

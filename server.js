@@ -435,6 +435,97 @@ app.post('/parse-excel', upload.single('file'), async (req, res) => {
     }
 });
 
+// ============================================
+// MASTER LIST PERSISTENCE ENDPOINTS
+// ============================================
+const fs = require('fs');
+const path = require('path');
+
+// Ensure data directory exists
+const DATA_DIR = path.join(__dirname, 'data', 'projects');
+if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+// Validate project name (prevent path traversal)
+function validateProjectName(name) {
+    if (!name || typeof name !== 'string') {
+        return false;
+    }
+    // Only allow letters, numbers, dash, underscore, and spaces
+    const validPattern = /^[a-zA-Z0-9_\-\s]+$/;
+    return validPattern.test(name) && name.length > 0 && name.length <= 100;
+}
+
+// Save master list to server
+app.post('/projects/save-master-list', express.json(), (req, res) => {
+    try {
+        const { projectName, items } = req.body;
+        
+        // Validate project name
+        if (!validateProjectName(projectName)) {
+            return res.status(400).json({ 
+                error: 'Invalid project name. Use only letters, numbers, dashes, underscores, and spaces.' 
+            });
+        }
+        
+        // Validate items
+        if (!Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ error: 'Items must be a non-empty array' });
+        }
+        
+        // Create project directory
+        const projectDir = path.join(DATA_DIR, projectName.replace(/\s+/g, '_'));
+        if (!fs.existsSync(projectDir)) {
+            fs.mkdirSync(projectDir, { recursive: true });
+        }
+        
+        // Save master list
+        const masterListPath = path.join(projectDir, 'master_list.json');
+        const data = {
+            projectName,
+            items,
+            createdAt: new Date().toISOString(),
+            itemCount: items.length
+        };
+        
+        fs.writeFileSync(masterListPath, JSON.stringify(data, null, 2));
+        
+        console.log(`[Master List] Saved: ${projectName} (${items.length} items)`);
+        res.json({ success: true, projectName, itemCount: items.length });
+        
+    } catch (error) {
+        console.error('[Master List] Save error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Retrieve master list from server
+app.get('/projects/:projectName/master-list', (req, res) => {
+    try {
+        const { projectName } = req.params;
+        
+        // Validate project name
+        if (!validateProjectName(projectName)) {
+            return res.status(400).json({ error: 'Invalid project name' });
+        }
+        
+        const projectDir = path.join(DATA_DIR, projectName.replace(/\s+/g, '_'));
+        const masterListPath = path.join(projectDir, 'master_list.json');
+        
+        if (!fs.existsSync(masterListPath)) {
+            return res.status(404).json({ error: 'Master list not found' });
+        }
+        
+        const data = JSON.parse(fs.readFileSync(masterListPath, 'utf8'));
+        res.json(data);
+        
+    } catch (error) {
+        console.error('[Master List] Retrieve error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
