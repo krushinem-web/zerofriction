@@ -1,0 +1,39 @@
+# Package manager lock files - use ONLY pnpm-lock.yaml
+package-lock.json
+npm-debug.log*
+yarn.lock
+
+# Node modules
+node_modules/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Railway specific
+.railway/
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Build artifacts (if any future build step added)
+dist/
+build/

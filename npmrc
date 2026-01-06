@@ -1,0 +1,17 @@
+# Force clean installs (no cache)
+cache=false
+
+# Prevent package-lock.json generation
+package-lock=false
+
+# Use exact versions
+save-exact=true
+
+# Strict engine validation
+engine-strict=true
+
+# Disable progress bar for cleaner CI logs
+progress=false
+
+# Fail on any warnings during install
+strict-ssl=true
