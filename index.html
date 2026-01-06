@@ -556,6 +556,91 @@
             -webkit-backdrop-filter: blur(12px);
         }
 
+        /* ============================================ */
+        /* AGGRESSIVE MIC OVERLAY (FIRE PALETTE)       */
+        /* ============================================ */
+        .mic-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.92);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            touch-action: none;
+        }
+
+        .mic-overlay.hidden { display: none; }
+
+        .mic-pulse {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            --pulseScale: 1;
+        }
+
+        .mic-core {
+            position: absolute;
+            inset: 0;
+            margin: auto;
+            width: 76px;
+            height: 76px;
+            border-radius: 50%;
+            background: radial-gradient(circle,
+                #FFB300 0%,
+                #FF6A00 45%,
+                #D62828 78%
+            );
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 36px;
+            color: #000;
+            box-shadow:
+                0 0 22px rgba(255,106,0,0.95),
+                0 0 48px rgba(214,40,40,0.9);
+            transform: scale(var(--pulseScale));
+            transition: transform 80ms linear;
+            z-index: 2;
+            cursor: pointer;
+        }
+
+        .ring {
+            position: absolute;
+            inset: 0;
+            margin: auto;
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,106,0,0.7);
+            animation: pulse 1.15s cubic-bezier(.2,.7,.2,1) infinite;
+            filter: drop-shadow(0 0 10px rgba(255,106,0,0.5));
+        }
+
+        .ring-2 {
+            animation-delay: 0.25s;
+            border-color: rgba(255,179,0,0.6);
+        }
+
+        .ring-3 {
+            animation-delay: 0.50s;
+            border-color: rgba(214,40,40,0.6);
+        }
+
+        @keyframes pulse {
+            0%   { transform: scale(0.55); opacity: 0.95; }
+            70%  { opacity: 0.25; }
+            100% { transform: scale(1.95); opacity: 0; }
+        }
+
+        .mic-label {
+            margin-top: 26px;
+            font-size: 16px;
+            color: #FFB300;
+            letter-spacing: 0.6px;
+            text-transform: none;
+        }
 
 </style>
 
@@ -1170,27 +1255,15 @@
 
     </div>
 
-    <!-- Microphone Recording Overlay (MOVED BEFORE SCRIPT - FIXES DOM TIMING) -->
-    <div id="microphoneOverlay" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.95); z-index: 9999;">
-        <div class="flex flex-col items-center justify-center">
-            <!-- Pulsing Microphone Icon -->
-            <button id="microphoneControl" class="relative flex items-center justify-center" aria-label="Stop recording">
-                <!-- Pulse rings using brand colors -->
-                <div class="absolute w-48 h-48 rounded-full animate-ping" style="animation-duration: 1.5s; background: rgba(249, 115, 22, 0.2);"></div>
-                <div class="absolute w-40 h-40 rounded-full animate-ping" style="animation-duration: 2s; background: rgba(249, 115, 22, 0.3);"></div>
-                
-                <!-- Microphone circle using brand gradient -->
-                <div class="relative w-32 h-32 rounded-full flex items-center justify-center shadow-2xl transition-transform hover:scale-105" style="background: linear-gradient(135deg, #f97316 0%, #ef4444 100%); box-shadow: 0 25px 50px -12px rgba(249, 115, 22, 0.5);">
-                    <svg class="w-16 h-16 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
-                    </svg>
-                </div>
-            </button>
-            
-            <!-- Recording status text -->
-            <p class="mt-8 text-xl font-semibold text-white">🎙️ Recording...</p>
-            <p class="mt-2 text-zinc-400">Tap microphone to stop</p>
+    <!-- Microphone Recording Overlay (AGGRESSIVE FIRE-THEMED) -->
+    <div id="microphoneOverlay" class="mic-overlay hidden" aria-hidden="true">
+        <div class="mic-pulse" id="micPulse">
+            <div class="ring ring-1"></div>
+            <div class="ring ring-2"></div>
+            <div class="ring ring-3"></div>
+            <div class="mic-core" id="micCore">🎤</div>
         </div>
+        <div class="mic-label" id="micLabel">Listening…</div>
     </div>
 
     <script>
@@ -1414,6 +1487,13 @@
         let audioChunks = [];
         let isRecording = false;
         let inventorySourceWasParsed = false;
+        
+        // Audio-reactive mic overlay variables
+        let micAudioCtx = null;
+        let micAnalyser = null;
+        let micSource = null;
+        let micRafId = null;
+        let currentStream = null;
         
         // Master list management state
         let masterListLocked = false;
@@ -2514,8 +2594,8 @@
 
         document.getElementById('recordButton').addEventListener('click', toggleRecording);
         
-        // Microphone overlay control - tap to stop recording
-        document.getElementById('microphoneControl').addEventListener('click', () => {
+        // Microphone overlay control - tap mic core to stop recording
+        document.getElementById('micCore').addEventListener('click', () => {
             console.log('[Microphone Overlay] Tapped - stopping recording');
             stopRecording();
         });
@@ -2531,6 +2611,7 @@
         async function startRecording() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                currentStream = stream; // Store globally for audio-reactive
                 mediaRecorder = new MediaRecorder(stream);
                 audioChunks = [];
 
@@ -2542,14 +2623,20 @@
                     const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                     await processVoiceRecording(audioBlob);
                     stream.getTracks().forEach(track => track.stop());
+                    currentStream = null;
                 };
 
                 mediaRecorder.start();
                 isRecording = true;
                 
                 // Show full-screen microphone overlay
-                document.getElementById('microphoneOverlay').classList.remove('hidden');
+                const overlay = document.getElementById('microphoneOverlay');
+                overlay.classList.remove('hidden');
+                overlay.setAttribute('aria-hidden', 'false');
                 console.log('[Microphone Overlay] Displayed - recording started');
+                
+                // Start audio-reactive pulse
+                startMicReactive(stream);
                 
                 document.getElementById('recordButtonText').textContent = 'Stop Recording';
                 updateSkipButtonState();
@@ -2567,8 +2654,16 @@
                 mediaRecorder.stop();
                 isRecording = false;
                 
+                // Stop audio-reactive
+                stopMicReactive();
+                
                 // Hide full-screen microphone overlay
-                document.getElementById('microphoneOverlay').classList.add('hidden');
+                const overlay = document.getElementById('microphoneOverlay');
+                overlay.classList.add('hidden');
+                overlay.setAttribute('aria-hidden', 'true');
+                // Reset scale in case audio-reactive was used
+                const core = document.getElementById('micCore');
+                if (core) core.style.setProperty('--pulseScale', '1');
                 console.log('[Microphone Overlay] Hidden - recording stopped');
                 
                 document.getElementById('recordButtonText').textContent = 'Record Voice Alias';
@@ -2622,6 +2717,66 @@
                 console.error('Error processing voice:', error);
                 showVoiceError(`Failed to process voice: ${error.message}`);
             }
+        }
+
+        // ============================================
+        // AUDIO-REACTIVE MIC OVERLAY (AGGRESSIVE MODE)
+        // ============================================
+        
+        function startMicReactive(stream) {
+            try {
+                // Create audio context and analyser
+                micAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                micAnalyser = micAudioCtx.createAnalyser();
+                micAnalyser.fftSize = 1024;
+
+                micSource = micAudioCtx.createMediaStreamSource(stream);
+                micSource.connect(micAnalyser);
+
+                const data = new Uint8Array(micAnalyser.frequencyBinCount);
+                const core = document.getElementById('micCore');
+
+                function tick() {
+                    micAnalyser.getByteTimeDomainData(data);
+
+                    // Calculate RMS amplitude (0..~1)
+                    let sum = 0;
+                    for (let i = 0; i < data.length; i++) {
+                        const v = (data[i] - 128) / 128; // Normalize to -1..1
+                        sum += v * v;
+                    }
+                    const rms = Math.sqrt(sum / data.length);
+
+                    // Aggressive mapping: 1.00 → 1.20 (tune for more/less punch)
+                    const scale = Math.min(1.20, 1.00 + rms * 0.55);
+                    core.style.setProperty('--pulseScale', scale.toFixed(3));
+
+                    micRafId = requestAnimationFrame(tick);
+                }
+                tick();
+                
+                console.log('[Audio-Reactive] Started');
+            } catch (error) {
+                console.error('[Audio-Reactive] Failed to start:', error);
+                // Fail silently - overlay will still work with fixed animation
+            }
+        }
+
+        function stopMicReactive() {
+            if (micRafId) {
+                cancelAnimationFrame(micRafId);
+                micRafId = null;
+            }
+            if (micSource) {
+                micSource.disconnect();
+                micSource = null;
+            }
+            micAnalyser = null;
+            if (micAudioCtx) {
+                micAudioCtx.close();
+                micAudioCtx = null;
+            }
+            console.log('[Audio-Reactive] Stopped');
         }
 
         document.getElementById('finishMappingButton').addEventListener('click', downloadAliases);
