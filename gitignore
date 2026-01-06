@@ -1,4 +1,4 @@
-# Package manager lock files - use ONLY pnpm-lock.yaml
+# Package manager - use ONLY pnpm-lock.yaml
 package-lock.json
 npm-debug.log*
 yarn.lock
@@ -33,7 +33,25 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+```
 
-# Build artifacts (if any future build step added)
-dist/
-build/
+#### FILE 2: `.npmrc`
+Create `.npmrc` in repository root:
+```
+# Force clean installs (no cache)
+cache=false
+
+# Prevent package-lock.json generation
+package-lock=false
+
+# Use exact versions
+save-exact=true
+
+# Strict engine validation
+engine-strict=true
+
+# Disable progress bar for cleaner CI logs
+progress=false
+
+# Fail on any warnings during install
+strict-ssl=true
