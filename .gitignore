@@ -8,3 +8,6 @@
 .env
 .env.local
 .env.production
+
+# Dependencies
+node_modules/

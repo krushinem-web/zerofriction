@@ -5,8 +5,10 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "install": "pnpm install",
     "git:push": "bash scripts/push_to_github.sh"
   },
+  "packageManager": "pnpm@10.27.0",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.18.0",
     "@google-cloud/speech": "^6.7.0",
@@ -19,6 +21,7 @@
     "uuid": "^9.0.1"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.0.0",
+    "pnpm": ">=10.0.0"
   }
 }

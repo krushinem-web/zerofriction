@@ -27,6 +27,7 @@
             padding: 0;
             box-sizing: border-box;
             -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
         }
 
         body {
@@ -42,7 +43,12 @@
         }
 
         /* Utilities */
-        .hidden { display: none !important; }
+        .hidden {
+            display: none !important;
+            pointer-events: none !important;
+            visibility: hidden !important;
+            z-index: -1 !important;
+        }
         .flex { display: flex; }
         .items-center { align-items: center; }
         .justify-between { justify-content: space-between; }
@@ -100,6 +106,14 @@
         .btn-glass { background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(5px); }
         .btn-record { background: #ef4444; color: white; border: none; animation: pulse-red 2s infinite; }
         .btn-record:disabled { background: var(--zinc-800); animation: none; opacity: 0.5; }
+
+        /* Priority Hit Targets - Ensure clickability */
+        .btn, .mode-card, .glass-card {
+            cursor: pointer !important;
+            pointer-events: auto !important;
+            position: relative;
+            z-index: 10;
+        }
 
         @keyframes pulse-red {
             0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
@@ -572,6 +586,14 @@
         }
 
         .mic-overlay.hidden { display: none; }
+
+        /* Overlay Reactivation - Ensure active overlay works */
+        .mic-overlay:not(.hidden) {
+            display: flex !important;
+            pointer-events: auto !important;
+            visibility: visible !important;
+            z-index: 9999 !important;
+        }
 
         .mic-pulse {
             position: relative;
@@ -1626,6 +1648,14 @@
 
         // Mode selection
         function selectMode(mode) {
+            // Dismiss all possible blocking UI
+            hideMicroBanner();
+            const micOverlay = document.getElementById('microphoneOverlay');
+            if (micOverlay) {
+                micOverlay.classList.add('hidden');
+                micOverlay.style.pointerEvents = 'none';
+            }
+            
             currentMode = mode;
             document.getElementById('modeSelectionScreen').classList.add('hidden');
             
