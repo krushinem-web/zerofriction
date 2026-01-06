@@ -18,13 +18,6 @@
             --zinc-950: #09090b;
             --zinc-900: #18181b;
             --zinc-800: #27272a;
-            --zinc-700: #3f3f46;
-            --zinc-600: #52525b;
-            --zinc-500: #71717a;
-            --zinc-400: #a1a1aa;
-            --zinc-300: #d4d4d8;
-            --zinc-200: #e4e4e7;
-            --zinc-100: #f4f4f5;
         }
 
         /* Reset & Base */
@@ -53,6 +46,7 @@
             display: none !important; 
             pointer-events: none !important;
             visibility: hidden !important;
+            z-index: -1 !important;
         }
         .flex { display: flex; }
         .items-center { align-items: center; }
@@ -150,27 +144,20 @@
             height: 140px;
             border-radius: 50%;
             border: 2px solid rgba(255,106,0,0.7);
-            animation: pulse 1.15s cubic-bezier(.2,.7,.2,1) infinite;
+            animation: ring-pulse 1.15s cubic-bezier(.2,.7,.2,1) infinite;
         }
 
-        @keyframes pulse {
+        @keyframes ring-pulse {
             0% { transform: scale(0.55); opacity: 0.95; }
             100% { transform: scale(1.95); opacity: 0; }
         }
 
-        /* Layout Helpers */
-        .max-w-6xl { max-width: 72rem; }
-        .mx-auto { margin-left: auto; margin-right: auto; }
-        .px-4 { padding-left: 1rem; padding-right: 1rem; }
-        .py-8 { padding-top: 2rem; padding-bottom: 2rem; }
-        .grid { display: grid; }
-        .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
-        @media (min-width: 768px) { .md\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-        .gap-6 { gap: 1.5rem; }
-        .mb-8 { margin-bottom: 2rem; }
-        .mb-6 { margin-bottom: 1.5rem; }
-        .text-2xl { font-size: 1.5rem; }
-        .text-white { color: white; }
+        .mic-label {
+            margin-top: 26px;
+            font-size: 16px;
+            color: #FFB300;
+            letter-spacing: 0.6px;
+        }
     </style>
 </head>
 <body>
@@ -186,25 +173,49 @@
             </div>
         </div>
 
+        <div class="text-center mb-8">
+            <img src="logo.png" alt="KrushFlow" class="mx-auto mb-1" style="width: 100%; max-width: 600px; height: auto;">
+            <p class="text-zinc-400 text-lg font-light">Intelligent inventory management</p>
+        </div>
+
         <div id="modeSelectionScreen">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div onclick="selectMode('new-setup')" class="glass-card">
-                    <h3 class="text-2xl text-white mb-3">New Setup</h3>
-                    <p class="text-zinc-400">Upload prep sheets to create inventory</p>
+                <div onclick="selectMode('new-setup')" class="group glass-card">
+                    <div class="icon-container mb-6 transition-transform group-hover:scale-110">
+                        <svg class="w-16 h-16 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl text-white mb-3" style="font-weight: 700;">New Setup</h3>
+                    <p class="text-zinc-400 font-normal">Upload prep sheets to create inventory</p>
                 </div>
-                <div onclick="selectMode('voice-mapping')" class="glass-card">
-                    <h3 class="text-2xl text-white mb-3">Voice Mapping</h3>
-                    <p class="text-zinc-400">Record voice aliases for accuracy</p>
+
+                <div onclick="selectMode('voice-mapping')" class="group glass-card">
+                    <div class="icon-container mb-6 transition-transform group-hover:scale-110">
+                        <svg class="w-16 h-16 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl text-white mb-3" style="font-weight: 700;">Voice Mapping</h3>
+                    <p class="text-zinc-400 font-normal">Record voice aliases for accuracy</p>
                 </div>
-                <div onclick="selectMode('daily-count')" class="glass-card">
-                    <h3 class="text-2xl text-white mb-3">Daily Count</h3>
-                    <p class="text-zinc-400">Count inventory using voice</p>
+
+                <div onclick="selectMode('daily-count')" class="group glass-card">
+                    <div class="icon-container mb-6 transition-transform group-hover:scale-110">
+                        <svg class="w-16 h-16 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-2xl text-white mb-3" style="font-weight: 700;">Daily Count</h3>
+                    <p class="text-zinc-400 font-normal">Count inventory using voice</p>
                 </div>
             </div>
         </div>
 
         <div id="voiceMappingInterface" class="hidden glass-card">
-            <h2 class="text-2xl font-bold mb-6">Record Voice Aliases</h2>
+            <button onclick="showModeSelection()" class="btn btn-secondary mb-6" style="width: auto;">← Back</button>
+            <h2 class="text-3xl font-bold mb-6">Record Voice Aliases</h2>
             <div class="flex gap-4">
                 <button id="recordButton" class="btn btn-record">Record Voice Alias</button>
             </div>
@@ -212,7 +223,7 @@
 
     </div>
 
-    <div id="micOverlay" class="mic-overlay hidden">
+    <div id="microphoneOverlay" class="mic-overlay hidden" onclick="stopRecording()">
         <div class="mic-pulse">
             <div class="ring ring-1"></div>
             <div class="ring ring-2"></div>
@@ -220,6 +231,7 @@
             <div class="mic-core">■</div>
         </div>
         <div class="mic-label">Listening…</div>
+        <p class="text-zinc-500 mt-4">Tap anywhere to stop</p>
     </div>
 
     <script>
@@ -227,27 +239,25 @@
         let mediaRecorder = null;
         let audioChunks = [];
         let currentMode = null;
-        let aliasData = {};
-        let inventoryItems = [];
 
         // UI Management
         function selectMode(mode) {
+            hideMicroBanner();
+            const micOverlay = document.getElementById('microphoneOverlay');
+            if(micOverlay) micOverlay.classList.add('hidden');
+            
             currentMode = mode;
             document.getElementById('modeSelectionScreen').classList.add('hidden');
+            
             if(mode === 'voice-mapping') {
                 document.getElementById('voiceMappingInterface').classList.remove('hidden');
-                initializeVoiceMapping();
             }
         }
 
-        function showMicOverlay() {
-            const el = document.getElementById("micOverlay");
-            el.classList.remove("hidden");
-        }
-
-        function hideMicOverlay() {
-            const el = document.getElementById("micOverlay");
-            el.classList.add("hidden");
+        function showModeSelection() {
+            document.getElementById('modeSelectionScreen').classList.remove('hidden');
+            document.getElementById('voiceMappingInterface').classList.add('hidden');
+            currentMode = null;
         }
 
         function showMicroBanner(message, type = 'success') {
@@ -269,7 +279,8 @@
         }
 
         function hideMicroBanner() {
-            document.getElementById('microBanner').classList.add('hidden');
+            const banner = document.getElementById('microBanner');
+            if(banner) banner.classList.add('hidden');
         }
 
         // Voice Recording Logic
@@ -282,13 +293,12 @@
                 mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
                 mediaRecorder.onstop = async () => {
                     const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                    // Handle processing here
                     stream.getTracks().forEach(track => track.stop());
                 };
 
                 mediaRecorder.start();
                 isRecording = true;
-                showMicOverlay();
+                document.getElementById("microphoneOverlay").classList.remove("hidden");
                 document.getElementById('recordButton').textContent = "Stop Recording";
             } catch (err) {
                 console.error("Mic error:", err);
@@ -300,19 +310,17 @@
             if (mediaRecorder && mediaRecorder.state !== 'inactive') {
                 mediaRecorder.stop();
                 isRecording = false;
-                hideMicOverlay();
+                document.getElementById("microphoneOverlay").classList.add("hidden");
                 document.getElementById('recordButton').textContent = "Record Voice Alias";
             }
         }
 
-        document.getElementById('recordButton').addEventListener('click', () => {
-            if (isRecording) stopRecording();
-            else startRecording();
-        });
-
-        function initializeVoiceMapping() {
-            // Logic to load items and aliases
-            console.log("Voice mapping ready");
+        const recBtn = document.getElementById('recordButton');
+        if(recBtn) {
+            recBtn.addEventListener('click', () => {
+                if (isRecording) stopRecording();
+                else startRecording();
+            });
         }
     </script>
 </body>
