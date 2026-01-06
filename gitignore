@@ -21,37 +21,15 @@ logs/
 # OS files
 .DS_Store
 Thumbs.db
-
-# Editor files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# Temporary files
-tmp/
-temp/
-*.tmp
 ```
 
-#### FILE 2: `.npmrc`
-Create `.npmrc` in repository root:
+---
+
+### STEP 3: Create .npmrc File
+
+Create a new file called `.npmrc` (note the dot at the start):
 ```
-# Force clean installs (no cache)
 cache=false
-
-# Prevent package-lock.json generation
 package-lock=false
-
-# Use exact versions
 save-exact=true
-
-# Strict engine validation
 engine-strict=true
-
-# Disable progress bar for cleaner CI logs
-progress=false
-
-# Fail on any warnings during install
-strict-ssl=true
