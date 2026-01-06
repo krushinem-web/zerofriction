@@ -8,10 +8,23 @@ const { v4: uuidv4 } = require('uuid');
 const app = express();
 const upload = multer({ limits: { fileSize: 8 * 1024 * 1024 } });
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-// Configure Vision client with credentials from environment
-const visionClient = new vision.ImageAnnotatorClient({
-    credentials: JSON.parse(process.env.GOOGLE_CREDS || '{}')
-});
+
+// Configure Vision client - Railway uses automatic auth, local uses GOOGLE_CREDS
+let visionClient;
+try {
+    if (process.env.GOOGLE_CREDS) {
+        // Local development with explicit credentials
+        visionClient = new vision.ImageAnnotatorClient({
+            credentials: JSON.parse(process.env.GOOGLE_CREDS)
+        });
+    } else {
+        // Railway/production - uses automatic authentication
+        visionClient = new vision.ImageAnnotatorClient();
+    }
+} catch (error) {
+    console.error('Vision client initialization error:', error.message);
+    visionClient = new vision.ImageAnnotatorClient(); // Fallback to default
+}
 
 app.use(express.json());
 app.use(express.static(__dirname));
