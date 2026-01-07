@@ -1,69 +1,851 @@
-<button id="new-project-btn" onclick="KF.start()">NEW PROJECT</button>
-<input type="file" id="cam" accept="image/*" capture="environment" multiple style="display:none" onchange="KF.process(event)">
-<div id="ocr-results" style="white-space: pre-wrap; font-family: monospace; border: 1px solid #ccc; padding: 10px; margin-top: 20px;"></div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>KrushFlow Inventory</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --brand: #f97316;
+            --brand-gradient: linear-gradient(135deg, #f97316 0%, #ef4444 50%, #facc15 100%);
+            --bg-page: #ffffff;
+            --glass: rgba(255, 255, 255, 0.9);
+            --glass-border: rgba(249, 115, 22, 0.25);
+            --text-main: #18181b;
+            --text-muted: #71717a;
+            --success: #22c55e;
+            --danger: #ef4444;
+        }
+
+        /* Reset & Base */
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+            -webkit-tap-highlight-color: transparent; 
+            touch-action: manipulation;
+        }
+
+        body {
+            background-color: var(--bg-page);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 100% 100%, rgba(239, 68, 68, 0.05) 0%, transparent 40%);
+        }
+
+        .container { max-width: 900px; margin: 0 auto; padding: 2rem; }
+
+        /* ========== SCREEN MANAGEMENT ========== */
+        .screen { display: none; }
+        .screen.active { display: block; }
+
+        /* ========== HEADER ========== */
+        header {
+            text-align: center;
+            padding: 3rem 0 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logo-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 1rem;
+            width: 100%;
+        }
+
+        .logo-wrapper img {
+            max-width: 300px;
+            height: auto;
+            display: block;
+        }
+
+        .tagline {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            font-weight: 300;
+            text-align: center;
+            width: 100%;
+        }
+
+        /* ========== MODE GRID & CARDS ========== */
+        .mode-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); 
+            gap: 1.5rem; 
+            margin-top: 2rem;
+        }
+
+        .glass-card {
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 1.5rem;
+            padding: 2.5rem 1.5rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.03);
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            z-index: 10;
+        }
+
+        .glass-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--brand);
+            box-shadow: 0 12px 30px rgba(249, 115, 22, 0.15);
+        }
+
+        .icon-container { 
+            width: 56px; 
+            height: 56px; 
+            margin-bottom: 1.5rem; 
+            color: var(--brand); 
+        }
+
+        .glass-card h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .glass-card p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* ========== PHASE HEADER ========== */
+        .phase-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 0 1.5rem;
+            border-bottom: 1px solid var(--glass-border);
+            margin-bottom: 1.5rem;
+        }
+
+        .phase-header h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: var(--brand-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .back-btn {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 0.75rem;
+            padding: 0.6rem 1rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-main);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .back-btn:hover {
+            border-color: var(--brand);
+            background: rgba(249, 115, 22, 0.05);
+        }
+
+        /* ========== UPLOAD ZONE ========== */
+        .upload-zone {
+            background: var(--glass);
+            border: 2px dashed var(--glass-border);
+            border-radius: 1.5rem;
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 1.5rem;
+        }
+
+        .upload-zone:hover {
+            border-color: var(--brand);
+            background: rgba(249, 115, 22, 0.03);
+        }
+
+        .upload-zone.dragover {
+            border-color: var(--success);
+            background: rgba(34, 197, 94, 0.05);
+        }
+
+        .upload-zone .icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .upload-zone p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .upload-zone strong {
+            color: var(--brand);
+        }
+
+        /* ========== PROJECT NAME INPUT ========== */
+        .project-name-input {
+            width: 100%;
+            padding: 1rem 1.25rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 1rem;
+            color: var(--text-main);
+            outline: none;
+            margin-bottom: 1.5rem;
+            transition: all 0.2s ease;
+        }
+
+        .project-name-input:focus {
+            border-color: var(--brand);
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+        }
+
+        .project-name-input::placeholder {
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        /* ========== STATUS BAR ========== */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.875rem 1.25rem;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 1rem;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .status-bar .count {
+            color: var(--brand);
+            font-weight: 700;
+        }
+
+        .status-bar .status-text {
+            color: var(--text-muted);
+        }
+
+        /* ========== ITEM LIST ========== */
+        .item-list {
+            list-style: none;
+            margin-bottom: 6rem;
+        }
+
+        .item-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 1.25rem;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 1rem;
+            margin-bottom: 0.625rem;
+            transition: all 0.2s ease;
+        }
+
+        .item-row:hover {
+            border-color: var(--brand);
+            box-shadow: 0 4px 12px rgba(249, 115, 22, 0.08);
+        }
+
+        .item-row.editing {
+            border-color: var(--brand);
+            background: rgba(249, 115, 22, 0.03);
+        }
+
+        .item-number {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            font-weight: 600;
+            min-width: 28px;
+        }
+
+        .item-name {
+            flex: 1;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 0.95rem;
+            color: var(--text-main);
+        }
+
+        .item-input {
+            flex: 1;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-size: 0.95rem;
+            padding: 0.5rem 0.75rem;
+            background: white;
+            border: 1px solid var(--brand);
+            border-radius: 0.5rem;
+            color: var(--text-main);
+            outline: none;
+        }
+
+        .item-input:focus {
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+        }
+
+        .item-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .item-btn {
+            padding: 0.4rem 0.75rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            background: white;
+            border: 1px solid var(--glass-border);
+            border-radius: 0.5rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .item-btn:hover {
+            border-color: var(--brand);
+            color: var(--brand);
+        }
+
+        .item-btn.delete:hover {
+            background: var(--danger);
+            border-color: var(--danger);
+            color: white;
+        }
+
+        /* ========== BUTTONS ========== */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 1rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            border: none;
+            border-radius: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: var(--brand-gradient);
+            color: white;
+            box-shadow: 0 4px 15px rgba(249, 115, 22, 0.3);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(249, 115, 22, 0.4);
+        }
+
+        .btn-full {
+            width: 100%;
+        }
+
+        /* ========== FOOTER ACTIONS ========== */
+        .footer-actions {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 1rem 2rem;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-top: 1px solid var(--glass-border);
+        }
+
+        .footer-actions .btn {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+        }
+
+        /* ========== EMPTY STATE ========== */
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1.5rem;
+            color: var(--text-muted);
+        }
+
+        /* ========== UTILITIES ========== */
+        .hidden { display: none !important; }
+
+        /* ========== RESPONSIVE ========== */
+        @media (max-width: 600px) {
+            .container { padding: 1rem; }
+            header { padding: 2rem 0 1.5rem; }
+            .logo-wrapper img { max-width: 220px; }
+            .glass-card { padding: 2rem 1.25rem; }
+            .phase-header h2 { font-size: 1.25rem; }
+            .footer-actions { padding: 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- ========== SCREEN: LANDING ========== -->
+    <div id="screen-landing" class="screen active">
+        <header>
+            <div class="logo-wrapper">
+                <img src="logo.png" alt="KrushFlow Logo">
+            </div>
+            <p class="tagline">Intelligent inventory management</p>
+        </header>
+
+        <main>
+            <div class="mode-grid">
+                <div class="glass-card" onclick="KrushFlow.openNewSetup()">
+                    <div class="icon-container">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                    </div>
+                    <h3>New Setup</h3>
+                    <p>Create inventory master list</p>
+                </div>
+
+                <div class="glass-card" onclick="KrushFlow.openVoiceMapping()">
+                    <div class="icon-container">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                        </svg>
+                    </div>
+                    <h3>Voice Mapping</h3>
+                    <p>Train custom voice aliases</p>
+                </div>
+
+                <div class="glass-card" onclick="KrushFlow.openDailyCount()">
+                    <div class="icon-container">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                    </div>
+                    <h3>Daily Count</h3>
+                    <p>Voice-powered counting</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ========== SCREEN: NEW SETUP (Phase 1) ========== -->
+    <div id="screen-new-setup" class="screen">
+        <div class="phase-header">
+            <button class="back-btn" onclick="KrushFlow.goHome()">
+                <span>←</span> Back
+            </button>
+            <h2>New Setup</h2>
+            <div style="width: 80px;"></div>
+        </div>
+
+        <input type="text" 
+               id="project-name" 
+               class="project-name-input" 
+               placeholder="Enter project name..."
+               maxlength="100">
+
+        <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+            <div class="icon">📷</div>
+            <p><strong>Tap to scan</strong> or upload files</p>
+            <p>Images, CSV, TXT, JSON</p>
+        </div>
+        <input type="file" 
+               id="file-input" 
+               accept="image/*,.csv,.txt,.json" 
+               capture="environment" 
+               multiple 
+               style="display:none">
+
+        <div class="status-bar">
+            <span>Items: <span class="count" id="item-count">0</span></span>
+            <span class="status-text" id="status-text">Ready to scan</span>
+        </div>
+
+        <ul class="item-list" id="item-list">
+            <li class="empty-state">Scan or upload to add items</li>
+        </ul>
+
+        <div class="footer-actions">
+            <button class="btn btn-primary btn-full" id="save-btn" onclick="KrushFlow.saveAndLock()" disabled>
+                Save & Lock Items
+            </button>
+        </div>
+    </div>
+
+    <!-- ========== SCREEN: VOICE MAPPING (Phase 2) ========== -->
+    <div id="screen-voice-mapping" class="screen">
+        <div class="phase-header">
+            <button class="back-btn" onclick="KrushFlow.goHome()">
+                <span>←</span> Back
+            </button>
+            <h2>Voice Mapping</h2>
+            <div style="width: 80px;"></div>
+        </div>
+        <div class="empty-state">
+            <p>Complete New Setup first to load a project</p>
+        </div>
+    </div>
+
+    <!-- ========== SCREEN: DAILY COUNT (Phase 3) ========== -->
+    <div id="screen-daily-count" class="screen">
+        <div class="phase-header">
+            <button class="back-btn" onclick="KrushFlow.goHome()">
+                <span>←</span> Back
+            </button>
+            <h2>Daily Count</h2>
+            <div style="width: 80px;"></div>
+        </div>
+        <div class="empty-state">
+            <p>Complete New Setup first to load a project</p>
+        </div>
+    </div>
+
+</div>
 
 <script>
-const KF = {
-    projectId: null,
-    lines: [],
+const KrushFlow = {
+    // ===== STATE =====
+    items: [],
+    projectName: '',
 
-    start: function() {
-        this.projectId = Date.now();
-        this.lines = [];
-        document.getElementById('ocr-results').innerText = "Scanning...";
-        document.getElementById('cam').click();
+    // ===== NAVIGATION =====
+    showScreen: function(screenId) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(screenId).classList.add('active');
+        window.scrollTo(0, 0);
     },
 
-    process: async function(e) {
-        const files = Array.from(e.target.files);
+    goHome: function() {
+        this.showScreen('screen-landing');
+    },
+
+    openNewSetup: function() {
+        this.items = [];
+        this.projectName = '';
+        document.getElementById('project-name').value = '';
+        this.renderItems();
+        this.updateStatus('Ready to scan');
+        this.showScreen('screen-new-setup');
+    },
+
+    openVoiceMapping: function() {
+        this.showScreen('screen-voice-mapping');
+    },
+
+    openDailyCount: function() {
+        this.showScreen('screen-daily-count');
+    },
+
+    // ===== FILE HANDLING =====
+    handleFiles: async function(files) {
+        if (!files || files.length === 0) return;
+
+        this.updateStatus('Processing...');
+
         for (const file of files) {
-            const b64 = await this.toB64(file);
-            const text = await this.ocr(b64);
-            // Perception-only: Split, trim, and append
-            const clean = text.split('\n').map(s => s.trim()).filter(s => s);
-            this.lines.push(...clean);
-            this.render();
+            try {
+                if (file.type.startsWith('image/')) {
+                    await this.processImage(file);
+                } else if (file.name.endsWith('.csv')) {
+                    await this.processCSV(file);
+                } else if (file.name.endsWith('.txt')) {
+                    await this.processTXT(file);
+                } else if (file.name.endsWith('.json')) {
+                    await this.processJSON(file);
+                }
+            } catch (err) {
+                console.error('Error processing file:', err);
+                this.updateStatus('Error: ' + err.message);
+            }
         }
-        this.save();
+
+        this.renderItems();
     },
 
-    ocr: async function(b64) {
-        const key = window.GOOGLE_API_KEY || "YOUR_KEY_IN_RAILWAY_VARS";
-        const url = `https://vision.googleapis.com/v1/images:annotate?key=${key}`;
-        const res = await fetch(url, {
-            method: 'POST',
-            body: JSON.stringify({
-                requests: [{
-                    image: { content: b64.split(',')[1] },
-                    features: [{ type: "DOCUMENT_TEXT_DETECTION" }]
-                }]
-            })
+    processImage: async function(file) {
+        this.updateStatus('Running OCR...');
+
+        const formData = new FormData();
+        formData.append('images', file);
+
+        try {
+            const response = await fetch('/vision/parse', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error('OCR failed');
+            }
+
+            const data = await response.json();
+
+            if (data.items && data.items.length > 0) {
+                data.items.forEach(item => {
+                    const name = item.name || item;
+                    if (name && !this.items.find(i => i.name === name)) {
+                        this.items.push({
+                            id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                            name: name
+                        });
+                    }
+                });
+                this.updateStatus('Added ' + data.items.length + ' items');
+            } else {
+                this.updateStatus('No items found');
+            }
+        } catch (err) {
+            console.error('OCR Error:', err);
+            this.updateStatus('OCR failed - check server');
+        }
+    },
+
+    processCSV: async function(file) {
+        const text = await file.text();
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+        const startIndex = lines[0] && lines[0].toLowerCase().includes('item') ? 1 : 0;
+
+        let added = 0;
+        for (let i = startIndex; i < lines.length; i++) {
+            const name = lines[i].split(',')[0].replace(/"/g, '').trim();
+            if (name && !this.items.find(item => item.name === name)) {
+                this.items.push({
+                    id: 'item_' + Date.now() + '_' + i,
+                    name: name
+                });
+                added++;
+            }
+        }
+        this.updateStatus('Added ' + added + ' items from CSV');
+    },
+
+    processTXT: async function(file) {
+        const text = await file.text();
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+
+        let added = 0;
+        lines.forEach((name, i) => {
+            if (name && !this.items.find(item => item.name === name)) {
+                this.items.push({
+                    id: 'item_' + Date.now() + '_' + i,
+                    name: name
+                });
+                added++;
+            }
         });
-        const json = await res.json();
-        return json.responses[0]?.fullTextAnnotation?.text || "";
+        this.updateStatus('Added ' + added + ' items from TXT');
     },
 
-    render: function() {
-        document.getElementById('ocr-results').innerText = this.lines.join('\n');
-    },
+    processJSON: async function(file) {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        const arr = Array.isArray(data) ? data : (data.items || []);
 
-    save: function() {
-        // Create the canonical master file in browser memory
-        const master = this.lines.join('\n');
-        localStorage.setItem(`source_ocr_${this.projectId}.txt`, master);
-        
-        // Sync to server backup
-        fetch('/api/sync', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ id: this.projectId, data: master })
+        let added = 0;
+        arr.forEach((item, i) => {
+            const name = typeof item === 'string' ? item : item.name;
+            if (name && !this.items.find(existing => existing.name === name)) {
+                this.items.push({
+                    id: 'item_' + Date.now() + '_' + i,
+                    name: name
+                });
+                added++;
+            }
         });
+        this.updateStatus('Added ' + added + ' items from JSON');
     },
 
-    toB64: f => new Promise(r => {
-        const rd = new FileReader();
-        rd.onload = () => r(rd.result);
-        rd.readAsDataURL(f);
-    })
+    // ===== ITEM MANAGEMENT =====
+    renderItems: function() {
+        const list = document.getElementById('item-list');
+        const count = document.getElementById('item-count');
+        const saveBtn = document.getElementById('save-btn');
+
+        count.textContent = this.items.length;
+        saveBtn.disabled = this.items.length === 0;
+
+        if (this.items.length === 0) {
+            list.innerHTML = '<li class="empty-state">Scan or upload to add items</li>';
+            return;
+        }
+
+        list.innerHTML = this.items.map((item, idx) => `
+            <li class="item-row" data-id="${item.id}">
+                <span class="item-number">${idx + 1}</span>
+                <span class="item-name" id="name-${item.id}">${this.escapeHtml(item.name)}</span>
+                <div class="item-actions">
+                    <button class="item-btn" onclick="KrushFlow.editItem('${item.id}')">Edit</button>
+                    <button class="item-btn delete" onclick="KrushFlow.deleteItem('${item.id}')">×</button>
+                </div>
+            </li>
+        `).join('');
+    },
+
+    editItem: function(id) {
+        const item = this.items.find(i => i.id === id);
+        if (!item) return;
+
+        const nameEl = document.getElementById('name-' + id);
+        const row = nameEl.closest('.item-row');
+
+        row.classList.add('editing');
+        nameEl.outerHTML = `<input type="text" class="item-input" id="name-${id}" value="${this.escapeHtml(item.name)}" onkeydown="if(event.key==='Enter')KrushFlow.saveEdit('${id}')" onblur="KrushFlow.saveEdit('${id}')">`;
+
+        const input = document.getElementById('name-' + id);
+        input.focus();
+        input.select();
+    },
+
+    saveEdit: function(id) {
+        const input = document.getElementById('name-' + id);
+        if (!input || input.tagName !== 'INPUT') return;
+
+        const item = this.items.find(i => i.id === id);
+        if (item) {
+            const newName = input.value.trim();
+            if (newName) {
+                item.name = newName;
+            }
+        }
+        this.renderItems();
+    },
+
+    deleteItem: function(id) {
+        this.items = this.items.filter(i => i.id !== id);
+        this.renderItems();
+        this.updateStatus(this.items.length + ' items');
+    },
+
+    // ===== SAVE =====
+    saveAndLock: async function() {
+        const projectName = document.getElementById('project-name').value.trim();
+
+        if (!projectName) {
+            alert('Please enter a project name');
+            document.getElementById('project-name').focus();
+            return;
+        }
+
+        if (this.items.length === 0) {
+            alert('Please add at least one item');
+            return;
+        }
+
+        this.updateStatus('Saving...');
+
+        // Save to server
+        try {
+            const response = await fetch('/projects/save-master-list', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    projectName: projectName,
+                    items: this.items.map(i => i.name)
+                })
+            });
+
+            if (response.ok) {
+                this.updateStatus('Saved!');
+            }
+        } catch (err) {
+            console.error('Save error:', err);
+        }
+
+        // Save to localStorage
+        const projectData = {
+            name: projectName,
+            items: this.items,
+            createdAt: new Date().toISOString()
+        };
+        localStorage.setItem('krushflow_project_' + projectName, JSON.stringify(projectData));
+
+        // Save to recent projects
+        let projects = JSON.parse(localStorage.getItem('krushflow_projects') || '[]');
+        projects = projects.filter(p => p.name !== projectName);
+        projects.unshift({ name: projectName, itemCount: this.items.length, createdAt: projectData.createdAt });
+        localStorage.setItem('krushflow_projects', JSON.stringify(projects));
+
+        alert('Project saved! ' + this.items.length + ' items locked.');
+        this.goHome();
+    },
+
+    // ===== UTILITIES =====
+    updateStatus: function(text) {
+        document.getElementById('status-text').textContent = text;
+    },
+
+    escapeHtml: function(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    },
+
+    // ===== INIT =====
+    init: function() {
+        // File input handler
+        document.getElementById('file-input').addEventListener('change', (e) => {
+            this.handleFiles(Array.from(e.target.files));
+            e.target.value = '';
+        });
+
+        // Drag and drop
+        const uploadZone = document.getElementById('upload-zone');
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            this.handleFiles(Array.from(e.dataTransfer.files));
+        });
+    }
 };
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', () => KrushFlow.init());
 </script>
+
+</body>
+</html>
