@@ -1,118 +1,69 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KrushFlow</title>
-    <style>
-        body { font-family: -apple-system, system-ui; padding: 20px; background: #f4f4f9; }
-        .vertical-list { background: white; border: 1px solid #ccc; padding: 15px; min-height: 200px; margin: 20px 0; border-radius: 8px; }
-        .ocr-line { border-bottom: 1px solid #eee; padding: 8px 0; font-family: monospace; white-space: pre-wrap; }
-        .btn { width: 100%; padding: 18px; font-size: 16px; font-weight: bold; color: white; border: none; border-radius: 10px; cursor: pointer; }
-        #new-project-btn { background: #007bff; }
-        #record-btn { background: #28a745; margin-top: 10px; display: none; }
-        #status { color: #666; font-size: 14px; text-align: center; margin-top: 5px; }
-    </style>
-</head>
-<body>
-
-    <button id="new-project-btn" class="btn" onclick="KrushFlow.start()">NEW PROJECT</button>
-    <div id="status">Ready for scanning</div>
-
-    <input type="file" id="camera-trigger" accept="image/*" capture="environment" multiple style="display:none" onchange="KrushFlow.handleCapture(event)">
-
-    <div id="ocr-output" class="vertical-list">
-        <div style="color:#aaa; text-align:center; padding-top:80px;">Scan results will appear here</div>
-    </div>
-
-    <button id="record-btn" class="btn">RECORD RESULTS</button>
+<button id="new-project-btn" onclick="KF.start()">NEW PROJECT</button>
+<input type="file" id="cam" accept="image/*" capture="environment" multiple style="display:none" onchange="KF.process(event)">
+<div id="ocr-results" style="white-space: pre-wrap; font-family: monospace; border: 1px solid #ccc; padding: 10px; margin-top: 20px;"></div>
 
 <script>
-const KrushFlow = {
+const KF = {
     projectId: null,
-    ocrData: [],
+    lines: [],
 
-    // 1. Starts a fresh project context
     start: function() {
-        this.projectId = `KF_${Date.now()}`;
-        this.ocrData = [];
-        document.getElementById('ocr-output').innerHTML = "Opening camera...";
-        document.getElementById('record-btn').style.display = "none";
-        document.getElementById('camera-trigger').click();
+        this.projectId = Date.now();
+        this.lines = [];
+        document.getElementById('ocr-results').innerText = "Scanning...";
+        document.getElementById('cam').click();
     },
 
-    // 2. Processes images (Perception-Only OCR)
-    handleCapture: async function(event) {
-        const files = Array.from(event.target.files);
-        if (!files.length) return;
-
-        document.getElementById('status').innerText = "Running Perception OCR...";
-
+    process: async function(e) {
+        const files = Array.from(e.target.files);
         for (const file of files) {
-            try {
-                const base64 = await this.toBase64(file);
-                const text = await this.callVisionAPI(base64);
-                
-                // Perception Logic: Strictly trim and separate lines
-                const lines = text.split('\n')
-                    .map(l => l.trim())
-                    .filter(l => l.length > 0);
-                
-                this.ocrData.push(...lines);
-                this.renderUI();
-            } catch (err) {
-                console.error("Image processing error:", err);
-            }
+            const b64 = await this.toB64(file);
+            const text = await this.ocr(b64);
+            // Perception-only: Split, trim, and append
+            const clean = text.split('\n').map(s => s.trim()).filter(s => s);
+            this.lines.push(...clean);
+            this.render();
         }
-        this.saveCanonicalFile();
-        this.syncProfile();
+        this.save();
     },
 
-    // 3. Directly calls Google Vision API
-    callVisionAPI: async function(base64) {
-        // This variable MUST be in your Railway Dashboard -> Variables
-        const API_KEY = window.GOOGLE_API_KEY || "YOUR_KEY_HERE"; 
-        const url = `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`;
-        
-        const response = await fetch(url, {
+    ocr: async function(b64) {
+        const key = window.GOOGLE_API_KEY || "YOUR_KEY_IN_RAILWAY_VARS";
+        const url = `https://vision.googleapis.com/v1/images:annotate?key=${key}`;
+        const res = await fetch(url, {
             method: 'POST',
             body: JSON.stringify({
                 requests: [{
-                    image: { content: base64.split(',')[1] },
+                    image: { content: b64.split(',')[1] },
                     features: [{ type: "DOCUMENT_TEXT_DETECTION" }]
                 }]
             })
         });
-        const data = await response.json();
-        return data.responses[0]?.fullTextAnnotation?.text || "";
+        const json = await res.json();
+        return json.responses[0]?.fullTextAnnotation?.text || "";
     },
 
-    renderUI: function() {
-        const out = document.getElementById('ocr-output');
-        out.innerHTML = this.ocrData.map(l => `<div class="ocr-line">${l}</div>`).join('');
-        document.getElementById('record-btn').style.display = "block";
-        document.getElementById('status').innerText = "Project Active: " + this.projectId;
+    render: function() {
+        document.getElementById('ocr-results').innerText = this.lines.join('\n');
     },
 
-    saveCanonicalFile: function() {
-        localStorage.setItem(`source_ocr.txt`, this.ocrData.join('\n'));
-    },
-
-    syncProfile: function() {
-        // Background sync to server-side backup
+    save: function() {
+        // Create the canonical master file in browser memory
+        const master = this.lines.join('\n');
+        localStorage.setItem(`source_ocr_${this.projectId}.txt`, master);
+        
+        // Sync to server backup
         fetch('/api/sync', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ profile: window.KrushProfile || {}, projectId: this.projectId })
-        }).then(() => console.log("Autosave complete."));
+            body: JSON.stringify({ id: this.projectId, data: master })
+        });
     },
 
-    toBase64: file => new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.readAsDataURL(file);
+    toB64: f => new Promise(r => {
+        const rd = new FileReader();
+        rd.onload = () => r(rd.result);
+        rd.readAsDataURL(f);
     })
 };
 </script>
-</body>
-</html>
