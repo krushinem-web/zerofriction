@@ -5,77 +5,76 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>KrushFlow</title>
     <style>
-        /* Mobile-First UI */
-        body { font-family: sans-serif; margin: 0; padding: 20px; background: #fafafa; }
-        #ocr-list { background: white; border: 1px solid #ddd; min-height: 200px; margin: 20px 0; padding: 10px; }
-        .ocr-line { border-bottom: 1px solid #eee; padding: 8px 0; font-family: monospace; }
-        .btn { width: 100%; padding: 15px; background: #007bff; color: white; border: none; border-radius: 5px; font-weight: bold; margin-bottom: 10px; }
-        .hidden { display: none; }
+        body { font-family: -apple-system, system-ui; padding: 20px; background: #f4f4f9; }
+        .vertical-list { background: white; border: 1px solid #ccc; padding: 15px; min-height: 200px; margin: 20px 0; border-radius: 8px; }
+        .ocr-line { border-bottom: 1px solid #eee; padding: 8px 0; font-family: monospace; white-space: pre-wrap; }
+        .btn { width: 100%; padding: 18px; font-size: 16px; font-weight: bold; color: white; border: none; border-radius: 10px; cursor: pointer; }
+        #new-project-btn { background: #007bff; }
+        #record-btn { background: #28a745; margin-top: 10px; display: none; }
+        #status { color: #666; font-size: 14px; text-align: center; margin-top: 5px; }
     </style>
 </head>
 <body>
 
-    <button class="btn" onclick="KrushFlow.startNewProject()">NEW PROJECT</button>
-    
-    <input type="file" id="camera-input" accept="image/*" capture="environment" multiple class="hidden" onchange="KrushFlow.handleCapture(event)">
+    <button id="new-project-btn" class="btn" onclick="KrushFlow.start()">NEW PROJECT</button>
+    <div id="status">Ready for scanning</div>
 
-    <div id="ocr-list">
-        <div id="status" style="color: #888;">No project active. Click "New Project" to scan.</div>
+    <input type="file" id="camera-trigger" accept="image/*" capture="environment" multiple style="display:none" onchange="KrushFlow.handleCapture(event)">
+
+    <div id="ocr-output" class="vertical-list">
+        <div style="color:#aaa; text-align:center; padding-top:80px;">Scan results will appear here</div>
     </div>
 
-    <button id="record-btn" class="btn hidden" style="background: #28a745;">RECORD RESULTS</button>
+    <button id="record-btn" class="btn">RECORD RESULTS</button>
 
 <script>
 const KrushFlow = {
     projectId: null,
-    masterList: [],
+    ocrData: [],
 
-    // 1. Initiate Project Context
-    startNewProject: function() {
-        this.projectId = `KP_${Date.now()}`;
-        this.masterList = [];
-        document.getElementById('ocr-list').innerHTML = "Ready for scan...";
-        document.getElementById('record-btn').classList.add('hidden');
-        
-        // Trigger Mobile Camera
-        document.getElementById('camera-input').click();
+    // 1. Starts a fresh project context
+    start: function() {
+        this.projectId = `KF_${Date.now()}`;
+        this.ocrData = [];
+        document.getElementById('ocr-output').innerHTML = "Opening camera...";
+        document.getElementById('record-btn').style.display = "none";
+        document.getElementById('camera-trigger').click();
     },
 
-    // 2. Handle Image & OCR (Perception Only)
+    // 2. Processes images (Perception-Only OCR)
     handleCapture: async function(event) {
         const files = Array.from(event.target.files);
         if (!files.length) return;
 
-        document.getElementById('status').innerText = "Processing Image (Perception-Only)...";
+        document.getElementById('status').innerText = "Running Perception OCR...";
 
         for (const file of files) {
             try {
                 const base64 = await this.toBase64(file);
                 const text = await this.callVisionAPI(base64);
                 
-                // Clean lines: No interpretation, just trimming whitespace
+                // Perception Logic: Strictly trim and separate lines
                 const lines = text.split('\n')
                     .map(l => l.trim())
                     .filter(l => l.length > 0);
                 
-                this.masterList.push(...lines);
-                this.updateUI();
+                this.ocrData.push(...lines);
+                this.renderUI();
             } catch (err) {
-                console.error("Image failed:", err);
+                console.error("Image processing error:", err);
             }
         }
-        
         this.saveCanonicalFile();
-        this.autosaveToCloud();
+        this.syncProfile();
     },
 
-    // 3. API Call using Railway Env Variable
+    // 3. Directly calls Google Vision API
     callVisionAPI: async function(base64) {
-        // Railway injects this into the environment; make sure it's accessible
-        const API_KEY = "[[INSERT_YOUR_GOOGLE_API_KEY_HERE]]" || window.GOOGLE_API_KEY; 
+        // This variable MUST be in your Railway Dashboard -> Variables
+        const API_KEY = window.GOOGLE_API_KEY || "YOUR_KEY_HERE"; 
         const url = `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`;
         
-        const res = await fetch(url, {
+        const response = await fetch(url, {
             method: 'POST',
             body: JSON.stringify({
                 requests: [{
@@ -84,37 +83,34 @@ const KrushFlow = {
                 }]
             })
         });
-        const data = await res.json();
+        const data = await response.json();
         return data.responses[0]?.fullTextAnnotation?.text || "";
     },
 
-    // 4. Persistence & UI
-    updateUI: function() {
-        const container = document.getElementById('ocr-list');
-        container.innerHTML = this.masterList
-            .map(line => `<div class="ocr-line">${line}</div>`)
-            .join('');
-        document.getElementById('record-btn').classList.remove('hidden');
+    renderUI: function() {
+        const out = document.getElementById('ocr-output');
+        out.innerHTML = this.ocrData.map(l => `<div class="ocr-line">${l}</div>`).join('');
+        document.getElementById('record-btn').style.display = "block";
+        document.getElementById('status').innerText = "Project Active: " + this.projectId;
     },
 
     saveCanonicalFile: function() {
-        const content = this.masterList.join('\n');
-        localStorage.setItem('source_ocr.txt', content);
+        localStorage.setItem(`source_ocr.txt`, this.ocrData.join('\n'));
     },
 
-    autosaveToCloud: async function() {
-        const profile = localStorage.getItem('KrushProfile') || "{}";
-        // Simple background ping to your Railway server (optional fallback)
-        fetch('/api/backup', { method: 'POST', body: profile }).catch(() => {
-            console.log("Local save only. Server backup pending connection.");
-        });
+    syncProfile: function() {
+        // Background sync to server-side backup
+        fetch('/api/sync', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ profile: window.KrushProfile || {}, projectId: this.projectId })
+        }).then(() => console.log("Autosave complete."));
     },
 
-    toBase64: file => new Promise((resolve, reject) => {
+    toBase64: file => new Promise((resolve) => {
         const reader = new FileReader();
-        reader.readAsDataURL(file);
         reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
+        reader.readAsDataURL(file);
     })
 };
 </script>
