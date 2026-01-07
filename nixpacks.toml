@@ -2,7 +2,10 @@
 nixPkgs = ["nodejs"]
 
 [phases.install]
-cmds = ["echo 'Bypassing npm install'"]
+cmds = ["pnpm i --frozen-lockfile"]
+
+[phases.build]
+cmds = ["echo 'Build successful'"]
 
 [start]
-cmd = "npx serve . -l $PORT"
+cmd = "node server.js"
