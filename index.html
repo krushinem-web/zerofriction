@@ -19,7 +19,14 @@
             --text-muted: #71717a;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        /* Reset & Base */
+        * { 
+            margin: 0; 
+            padding: 0; 
+            box-sizing: border-box; 
+            -webkit-tap-highlight-color: transparent; 
+            touch-action: manipulation;
+        }
 
         body {
             background-color: var(--bg-page);
@@ -33,9 +40,14 @@
 
         .container { max-width: 900px; margin: 0 auto; padding: 2rem; }
 
+        /* Header & Centering Logic */
         header {
             text-align: center;
-            padding: 2rem 0 3rem;
+            padding: 3rem 0 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
 
         .logo-wrapper {
@@ -43,20 +55,30 @@
             justify-content: center;
             align-items: center;
             margin-bottom: 1rem;
+            width: 100%;
         }
 
         .logo-wrapper img {
-            max-width: 280px;
+            max-width: 300px;
             height: auto;
+            display: block;
         }
 
         .tagline {
             color: var(--text-muted);
             font-size: 1.1rem;
             font-weight: 300;
+            text-align: center;
+            width: 100%;
         }
 
-        .mode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; }
+        /* Grid & Cards */
+        .mode-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); 
+            gap: 1.5rem; 
+            margin-top: 2rem;
+        }
 
         .glass-card {
             background: var(--glass);
@@ -72,6 +94,8 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            position: relative;
+            z-index: 10;
         }
 
         .glass-card:hover {
@@ -80,7 +104,13 @@
             box-shadow: 0 12px 30px rgba(249, 115, 22, 0.15);
         }
 
-        .icon-container { width: 56px; height: 56px; margin-bottom: 1.5rem; color: var(--brand); }
+        .icon-container { 
+            width: 56px; 
+            height: 56px; 
+            margin-bottom: 1.5rem; 
+            color: var(--brand); 
+        }
+
         .hidden { display: none !important; }
 
         .mic-overlay {
@@ -103,7 +133,10 @@
             <div id="modeSelectionScreen" class="mode-grid">
                 <div class="glass-card" onclick="selectMode('new-setup')">
                     <div class="icon-container">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
                     </div>
                     <h3>New Setup</h3>
                     <p style="color: var(--text-muted); margin-top: 0.5rem;">Create inventory master list</p>
@@ -111,7 +144,9 @@
 
                 <div class="glass-card" onclick="selectMode('voice-mapping')">
                     <div class="icon-container">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                        </svg>
                     </div>
                     <h3>Voice Mapping</h3>
                     <p style="color: var(--text-muted); margin-top: 0.5rem;">Train custom voice aliases</p>
@@ -119,7 +154,9 @@
 
                 <div class="glass-card" onclick="selectMode('daily-count')">
                     <div class="icon-container">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
                     </div>
                     <h3>Daily Count</h3>
                     <p style="color: var(--text-muted); margin-top: 0.5rem;">Voice-powered counting</p>
