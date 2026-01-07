@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["nodejs"]
+
+[phases.install]
+cmds = ["echo 'Bypassing npm install'"]
+
+[start]
+cmd = "npx serve . -l $PORT"
