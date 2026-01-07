@@ -1,7 +1,17 @@
 [phases.setup]
 nixPkgs = ["nodejs"]
 
+[phases.install][phases.setup]
+nixPkgs = ["nodejs", "pnpm-9_x"]
+
 [phases.install]
+cmds = ["pnpm install --frozen-lockfile"]
+
+[phases.build]
+cmds = ["echo 'Build skipped to prevent npm conflicts'"]
+
+[start]
+cmd = "node server.js"
 cmds = ["pnpm i --frozen-lockfile"]
 
 [phases.build]
