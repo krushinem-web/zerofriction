@@ -117,6 +117,54 @@
             position: fixed; inset: 0; background: rgba(0,0,0,0.94);
             display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999;
         }
+
+        /* OCR Output Styling */
+        .ocr-output-list {
+            width: 100%;
+            max-height: 60vh;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            background: #fff;
+            padding: 10px;
+            font-family: 'Courier New', Courier, monospace;
+            border-radius: 0.5rem;
+        }
+
+        .ocr-line-item {
+            padding: 5px 0;
+            border-bottom: 1px solid #f0f0f0;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        /* Mobile Button Responsiveness */
+        #new-project-btn, #record-btn {
+            width: 100%;
+            padding: 15px;
+            font-weight: bold;
+            touch-action: manipulation;
+            background: var(--brand-gradient);
+            color: white;
+            border: none;
+            border-radius: 1rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        #new-project-btn:hover, #record-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(249, 115, 22, 0.3);
+        }
+
+        .primary-btn {
+            background: var(--brand-gradient);
+            color: white;
+            border: none;
+            border-radius: 1rem;
+            font-size: 1rem;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -130,6 +178,18 @@
         </header>
 
         <main>
+            <button id="new-project-btn" class="primary-btn" onclick="KrushFlow.initiateNewProject()">NEW PROJECT</button>
+            
+            <input type="file" id="camera-input" accept="image/*" capture="environment" multiple 
+                   style="display:none" onchange="KrushFlow.processCapture(event)">
+            
+            <div id="project-workspace" style="margin-top: 20px;">
+                <div id="ocr-status" style="font-style: italic; color: #666; display: none;">Processing images...</div>
+                <div id="vertical-ocr-list" class="ocr-output-list"></div>
+            </div>
+            
+            <button id="record-btn" style="display:none; margin-top: 15px;">RECORD RESULTS</button>
+
             <div id="modeSelectionScreen" class="mode-grid">
                 <div class="glass-card" onclick="selectMode('new-setup')">
                     <div class="icon-container">
@@ -166,6 +226,100 @@
     </div>
 
     <script>
+        const KrushFlow = {
+            projectId: null,
+            masterOcrData: [],
+
+            // 1. Starts fresh workspace
+            initiateNewProject: function() {
+                console.log("Creating new project context...");
+                this.projectId = `project_${Date.now()}`;
+                this.masterOcrData = [];
+                
+                // Clear UI (Preserve KrushProfile global memory)
+                document.getElementById('vertical-ocr-list').innerHTML = '';
+                document.getElementById('record-btn').style.display = 'none';
+                
+                // Trigger camera
+                document.getElementById('camera-input').click();
+            },
+
+            // 2. Processes images in captured order
+            processCapture: async function(event) {
+                const files = Array.from(event.target.files);
+                if (!files.length) return;
+
+                const statusLabel = document.getElementById('ocr-status');
+                statusLabel.style.display = 'block';
+
+                for (const file of files) {
+                    try {
+                        const rawText = await this.fetchGoogleOCR(file);
+                        
+                        // OCR Perception: Strict cleaning only
+                        const cleanLines = rawText.split('\n')
+                            .map(line => line.trim())
+                            .filter(line => line.length > 0);
+                        
+                        // Append all OCR lines into a single continuous list
+                        this.masterOcrData.push(...cleanLines);
+                        
+                        // Render UI immediately
+                        this.renderVerticalList();
+                    } catch (error) {
+                        console.error("Image failed, continuing project:", error);
+                    }
+                }
+
+                this.finalizeMasterFile();
+                statusLabel.style.display = 'none';
+            },
+
+            // 3. Use backend /vision/parse endpoint for OCR
+            fetchGoogleOCR: async function(file) {
+                const formData = new FormData();
+                formData.append('images', file);
+
+                const response = await fetch('/vision/parse', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`OCR failed: ${response.statusText}`);
+                }
+
+                const json = await response.json();
+                // Extract text from pages returned by backend
+                const text = json.pages?.map(p => p.text).join('\n') || '';
+                return text;
+            },
+
+            // 4. Update UI & Save Canonical File
+            renderVerticalList: function() {
+                const listContainer = document.getElementById('vertical-ocr-list');
+                listContainer.innerHTML = this.masterOcrData
+                    .map(line => `<div class="ocr-line-item">${line}</div>`)
+                    .join('');
+                
+                document.getElementById('record-btn').style.display = 'block';
+            },
+
+            finalizeMasterFile: function() {
+                const finalContent = this.masterOcrData.join('\n');
+                // Create canonical master file (Immutable for the project)
+                localStorage.setItem('source_ocr.txt', finalContent);
+                console.log("source_ocr.txt saved as authoritative source.");
+            },
+
+            convertToBase64: (file) => new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = (e) => reject(e);
+                reader.readAsDataURL(file);
+            })
+        };
+
         function selectMode(mode) {
             console.log("Selected mode:", mode);
         }
