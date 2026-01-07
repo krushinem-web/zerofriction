@@ -3,326 +3,120 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KrushFlow Inventory</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    
+    <title>KrushFlow</title>
     <style>
-        :root {
-            --brand: #f97316;
-            --brand-gradient: linear-gradient(135deg, #f97316 0%, #ef4444 50%, #facc15 100%);
-            --bg-page: #ffffff;
-            --glass: rgba(255, 255, 255, 0.9);
-            --glass-border: rgba(249, 115, 22, 0.25);
-            --text-main: #18181b;
-            --text-muted: #71717a;
-        }
-
-        /* Reset & Base */
-        * { 
-            margin: 0; 
-            padding: 0; 
-            box-sizing: border-box; 
-            -webkit-tap-highlight-color: transparent; 
-            touch-action: manipulation;
-        }
-
-        body {
-            background-color: var(--bg-page);
-            color: var(--text-main);
-            font-family: 'Inter', sans-serif;
-            min-height: 100vh;
-            background-image: 
-                radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.05) 0%, transparent 40%),
-                radial-gradient(circle at 100% 100%, rgba(239, 68, 68, 0.05) 0%, transparent 40%);
-        }
-
-        .container { max-width: 900px; margin: 0 auto; padding: 2rem; }
-
-        /* Header & Centering Logic */
-        header {
-            text-align: center;
-            padding: 3rem 0 2rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .logo-wrapper {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin-bottom: 1rem;
-            width: 100%;
-        }
-
-        .logo-wrapper img {
-            max-width: 300px;
-            height: auto;
-            display: block;
-        }
-
-        .tagline {
-            color: var(--text-muted);
-            font-size: 1.1rem;
-            font-weight: 300;
-            text-align: center;
-            width: 100%;
-        }
-
-        /* Grid & Cards */
-        .mode-grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); 
-            gap: 1.5rem; 
-            margin-top: 2rem;
-        }
-
-        .glass-card {
-            background: var(--glass);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid var(--glass-border);
-            border-radius: 1.5rem;
-            padding: 2.5rem 1.5rem;
-            text-align: center;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.03);
-            cursor: pointer;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            position: relative;
-            z-index: 10;
-        }
-
-        .glass-card:hover {
-            transform: translateY(-5px);
-            border-color: var(--brand);
-            box-shadow: 0 12px 30px rgba(249, 115, 22, 0.15);
-        }
-
-        .icon-container { 
-            width: 56px; 
-            height: 56px; 
-            margin-bottom: 1.5rem; 
-            color: var(--brand); 
-        }
-
-        .hidden { display: none !important; }
-
-        .mic-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.94);
-            display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999;
-        }
-
-        /* OCR Output Styling */
-        .ocr-output-list {
-            width: 100%;
-            max-height: 60vh;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            background: #fff;
-            padding: 10px;
-            font-family: 'Courier New', Courier, monospace;
-            border-radius: 0.5rem;
-        }
-
-        .ocr-line-item {
-            padding: 5px 0;
-            border-bottom: 1px solid #f0f0f0;
-            white-space: pre-wrap;
-            word-break: break-all;
-        }
-
-        /* Mobile Button Responsiveness */
-        #new-project-btn, #record-btn {
-            width: 100%;
-            padding: 15px;
-            font-weight: bold;
-            touch-action: manipulation;
-            background: var(--brand-gradient);
-            color: white;
-            border: none;
-            border-radius: 1rem;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        #new-project-btn:hover, #record-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(249, 115, 22, 0.3);
-        }
-
-        .primary-btn {
-            background: var(--brand-gradient);
-            color: white;
-            border: none;
-            border-radius: 1rem;
-            font-size: 1rem;
-            cursor: pointer;
-        }
+        /* Mobile-First UI */
+        body { font-family: sans-serif; margin: 0; padding: 20px; background: #fafafa; }
+        #ocr-list { background: white; border: 1px solid #ddd; min-height: 200px; margin: 20px 0; padding: 10px; }
+        .ocr-line { border-bottom: 1px solid #eee; padding: 8px 0; font-family: monospace; }
+        .btn { width: 100%; padding: 15px; background: #007bff; color: white; border: none; border-radius: 5px; font-weight: bold; margin-bottom: 10px; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <header>
-            <div class="logo-wrapper">
-                <img src="logo.png" alt="KrushFlow Logo">
-            </div>
-            <p class="tagline">Intelligent inventory management</p>
-        </header>
+    <button class="btn" onclick="KrushFlow.startNewProject()">NEW PROJECT</button>
+    
+    <input type="file" id="camera-input" accept="image/*" capture="environment" multiple class="hidden" onchange="KrushFlow.handleCapture(event)">
 
-        <main>
-            <button id="new-project-btn" class="primary-btn" onclick="KrushFlow.initiateNewProject()">NEW PROJECT</button>
-            
-            <input type="file" id="camera-input" accept="image/*" capture="environment" multiple 
-                   style="display:none" onchange="KrushFlow.processCapture(event)">
-            
-            <div id="project-workspace" style="margin-top: 20px;">
-                <div id="ocr-status" style="font-style: italic; color: #666; display: none;">Processing images...</div>
-                <div id="vertical-ocr-list" class="ocr-output-list"></div>
-            </div>
-            
-            <button id="record-btn" style="display:none; margin-top: 15px;">RECORD RESULTS</button>
-
-            <div id="modeSelectionScreen" class="mode-grid">
-                <div class="glass-card" onclick="selectMode('new-setup')">
-                    <div class="icon-container">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                        </svg>
-                    </div>
-                    <h3>New Setup</h3>
-                    <p style="color: var(--text-muted); margin-top: 0.5rem;">Create inventory master list</p>
-                </div>
-
-                <div class="glass-card" onclick="selectMode('voice-mapping')">
-                    <div class="icon-container">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
-                        </svg>
-                    </div>
-                    <h3>Voice Mapping</h3>
-                    <p style="color: var(--text-muted); margin-top: 0.5rem;">Train custom voice aliases</p>
-                </div>
-
-                <div class="glass-card" onclick="selectMode('daily-count')">
-                    <div class="icon-container">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                        </svg>
-                    </div>
-                    <h3>Daily Count</h3>
-                    <p style="color: var(--text-muted); margin-top: 0.5rem;">Voice-powered counting</p>
-                </div>
-            </div>
-        </main>
+    <div id="ocr-list">
+        <div id="status" style="color: #888;">No project active. Click "New Project" to scan.</div>
     </div>
 
-    <script>
-        const KrushFlow = {
-            projectId: null,
-            masterOcrData: [],
+    <button id="record-btn" class="btn hidden" style="background: #28a745;">RECORD RESULTS</button>
 
-            // 1. Starts fresh workspace
-            initiateNewProject: function() {
-                console.log("Creating new project context...");
-                this.projectId = `project_${Date.now()}`;
-                this.masterOcrData = [];
+<script>
+const KrushFlow = {
+    projectId: null,
+    masterList: [],
+
+    // 1. Initiate Project Context
+    startNewProject: function() {
+        this.projectId = `KP_${Date.now()}`;
+        this.masterList = [];
+        document.getElementById('ocr-list').innerHTML = "Ready for scan...";
+        document.getElementById('record-btn').classList.add('hidden');
+        
+        // Trigger Mobile Camera
+        document.getElementById('camera-input').click();
+    },
+
+    // 2. Handle Image & OCR (Perception Only)
+    handleCapture: async function(event) {
+        const files = Array.from(event.target.files);
+        if (!files.length) return;
+
+        document.getElementById('status').innerText = "Processing Image (Perception-Only)...";
+
+        for (const file of files) {
+            try {
+                const base64 = await this.toBase64(file);
+                const text = await this.callVisionAPI(base64);
                 
-                // Clear UI (Preserve KrushProfile global memory)
-                document.getElementById('vertical-ocr-list').innerHTML = '';
-                document.getElementById('record-btn').style.display = 'none';
+                // Clean lines: No interpretation, just trimming whitespace
+                const lines = text.split('\n')
+                    .map(l => l.trim())
+                    .filter(l => l.length > 0);
                 
-                // Trigger camera
-                document.getElementById('camera-input').click();
-            },
-
-            // 2. Processes images in captured order
-            processCapture: async function(event) {
-                const files = Array.from(event.target.files);
-                if (!files.length) return;
-
-                const statusLabel = document.getElementById('ocr-status');
-                statusLabel.style.display = 'block';
-
-                for (const file of files) {
-                    try {
-                        const rawText = await this.fetchGoogleOCR(file);
-                        
-                        // OCR Perception: Strict cleaning only
-                        const cleanLines = rawText.split('\n')
-                            .map(line => line.trim())
-                            .filter(line => line.length > 0);
-                        
-                        // Append all OCR lines into a single continuous list
-                        this.masterOcrData.push(...cleanLines);
-                        
-                        // Render UI immediately
-                        this.renderVerticalList();
-                    } catch (error) {
-                        console.error("Image failed, continuing project:", error);
-                    }
-                }
-
-                this.finalizeMasterFile();
-                statusLabel.style.display = 'none';
-            },
-
-            // 3. Use backend /vision/parse endpoint for OCR
-            fetchGoogleOCR: async function(file) {
-                const formData = new FormData();
-                formData.append('images', file);
-
-                const response = await fetch('/vision/parse', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!response.ok) {
-                    throw new Error(`OCR failed: ${response.statusText}`);
-                }
-
-                const json = await response.json();
-                // Extract text from pages returned by backend
-                const text = json.pages?.map(p => p.text).join('\n') || '';
-                return text;
-            },
-
-            // 4. Update UI & Save Canonical File
-            renderVerticalList: function() {
-                const listContainer = document.getElementById('vertical-ocr-list');
-                listContainer.innerHTML = this.masterOcrData
-                    .map(line => `<div class="ocr-line-item">${line}</div>`)
-                    .join('');
-                
-                document.getElementById('record-btn').style.display = 'block';
-            },
-
-            finalizeMasterFile: function() {
-                const finalContent = this.masterOcrData.join('\n');
-                // Create canonical master file (Immutable for the project)
-                localStorage.setItem('source_ocr.txt', finalContent);
-                console.log("source_ocr.txt saved as authoritative source.");
-            },
-
-            convertToBase64: (file) => new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = (e) => reject(e);
-                reader.readAsDataURL(file);
-            })
-        };
-
-        function selectMode(mode) {
-            console.log("Selected mode:", mode);
+                this.masterList.push(...lines);
+                this.updateUI();
+            } catch (err) {
+                console.error("Image failed:", err);
+            }
         }
-    </script>
+        
+        this.saveCanonicalFile();
+        this.autosaveToCloud();
+    },
+
+    // 3. API Call using Railway Env Variable
+    callVisionAPI: async function(base64) {
+        // Railway injects this into the environment; make sure it's accessible
+        const API_KEY = "[[INSERT_YOUR_GOOGLE_API_KEY_HERE]]" || window.GOOGLE_API_KEY; 
+        const url = `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`;
+        
+        const res = await fetch(url, {
+            method: 'POST',
+            body: JSON.stringify({
+                requests: [{
+                    image: { content: base64.split(',')[1] },
+                    features: [{ type: "DOCUMENT_TEXT_DETECTION" }]
+                }]
+            })
+        });
+        const data = await res.json();
+        return data.responses[0]?.fullTextAnnotation?.text || "";
+    },
+
+    // 4. Persistence & UI
+    updateUI: function() {
+        const container = document.getElementById('ocr-list');
+        container.innerHTML = this.masterList
+            .map(line => `<div class="ocr-line">${line}</div>`)
+            .join('');
+        document.getElementById('record-btn').classList.remove('hidden');
+    },
+
+    saveCanonicalFile: function() {
+        const content = this.masterList.join('\n');
+        localStorage.setItem('source_ocr.txt', content);
+    },
+
+    autosaveToCloud: async function() {
+        const profile = localStorage.getItem('KrushProfile') || "{}";
+        // Simple background ping to your Railway server (optional fallback)
+        fetch('/api/backup', { method: 'POST', body: profile }).catch(() => {
+            console.log("Local save only. Server backup pending connection.");
+        });
+    },
+
+    toBase64: file => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+    })
+};
+</script>
 </body>
 </html>
