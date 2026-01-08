@@ -21,6 +21,25 @@
             --danger: #ef4444;
         }
 
+        /* Dark Mode */
+        [data-theme="dark"] {
+            --brand: #fb923c;
+            --brand-gradient: linear-gradient(135deg, #fb923c 0%, #f87171 50%, #fde047 100%);
+            --bg-page: #09090b;
+            --glass: rgba(39, 39, 42, 0.9);
+            --glass-border: rgba(251, 146, 60, 0.25);
+            --text-main: #fafafa;
+            --text-muted: #a1a1aa;
+            --success: #4ade80;
+            --danger: #f87171;
+        }
+
+        [data-theme="dark"] body {
+            background-image:
+                radial-gradient(circle at 0% 0%, rgba(251, 146, 60, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 100% 100%, rgba(239, 68, 68, 0.08) 0%, transparent 40%);
+        }
+
         /* Reset & Base */
         * { 
             margin: 0; 
@@ -735,6 +754,34 @@
             color: var(--text-muted);
         }
 
+        /* ========== THEME TOGGLE ========== */
+        .theme-toggle {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.1) rotate(15deg);
+            border-color: var(--brand);
+        }
+
+        .theme-toggle:active {
+            transform: scale(0.95);
+        }
+
         /* ========== BOTTOM HOME BUTTON ========== */
         .bottom-home-btn {
             display: block;
@@ -784,6 +831,9 @@
     <!-- ========== SCREEN: LANDING ========== -->
     <div id="screen-landing" class="screen active">
         <header>
+            <button class="theme-toggle" onclick="KrushFlow.toggleTheme()" aria-label="Toggle dark mode">
+                <span class="theme-icon">🌙</span>
+            </button>
             <div class="logo-wrapper">
                 <img src="logo.png" alt="KrushFlow Logo">
             </div>
@@ -2096,8 +2146,30 @@ const KrushFlow = {
         }
     },
 
+    // ===== THEME FUNCTIONS =====
+    toggleTheme: function() {
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+
+        document.documentElement.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+        this.updateThemeIcon(newTheme);
+    },
+
+    updateThemeIcon: function(theme) {
+        const icon = document.querySelector('.theme-icon');
+        if (icon) {
+            icon.textContent = theme === 'light' ? '🌙' : '☀️';
+        }
+    },
+
     // ===== INIT =====
     init: function() {
+        // Initialize theme
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        this.updateThemeIcon(savedTheme);
+
         // File input handler - New Setup
         document.getElementById('file-input').addEventListener('change', (e) => {
             this.handleFiles(Array.from(e.target.files));
