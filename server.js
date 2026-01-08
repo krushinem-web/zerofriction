@@ -230,6 +230,89 @@ function validateLLMOutput(llmOutput) {
     return validItems;
 }
 
+// Helper function for Stage 4: Master List Alignment
+// Uses deterministic matching - exact match or clear fuzzy match only
+function alignWithMasterList(scannedItems, masterList) {
+    console.log(`[Stage 4 Alignment] Matching ${scannedItems.length} scanned items against ${masterList.length} master items`);
+
+    const matched = [];
+    const unmatched = [];
+
+    scannedItems.forEach(scannedItem => {
+        const scannedName = scannedItem.toLowerCase().trim();
+
+        // Try exact match first (case-insensitive)
+        const exactMatch = masterList.find(masterItem =>
+            masterItem.toLowerCase().trim() === scannedName
+        );
+
+        if (exactMatch) {
+            matched.push({
+                scannedName: scannedItem,
+                masterName: exactMatch,
+                matchType: 'exact',
+                confidence: 1.0
+            });
+            console.log(`[Alignment] EXACT MATCH: "${scannedItem}" → "${exactMatch}"`);
+            return;
+        }
+
+        // Try fuzzy match (simple Levenshtein-like similarity)
+        let bestMatch = null;
+        let bestSimilarity = 0;
+
+        masterList.forEach(masterItem => {
+            const similarity = calculateSimilarity(scannedName, masterItem.toLowerCase().trim());
+            if (similarity > bestSimilarity) {
+                bestSimilarity = similarity;
+                bestMatch = masterItem;
+            }
+        });
+
+        // Only accept fuzzy match if confidence is very high (>= 0.85)
+        // This prevents false positives - ambiguity is rejected, not corrected
+        if (bestSimilarity >= 0.85) {
+            matched.push({
+                scannedName: scannedItem,
+                masterName: bestMatch,
+                matchType: 'fuzzy',
+                confidence: bestSimilarity
+            });
+            console.log(`[Alignment] FUZZY MATCH: "${scannedItem}" → "${bestMatch}" (${(bestSimilarity * 100).toFixed(0)}%)`);
+        } else {
+            unmatched.push({
+                scannedName: scannedItem,
+                suggestedMatch: bestSimilarity > 0.6 ? bestMatch : null,
+                confidence: bestSimilarity
+            });
+            console.log(`[Alignment] UNMATCHED: "${scannedItem}" (best: "${bestMatch}" at ${(bestSimilarity * 100).toFixed(0)}%)`);
+        }
+    });
+
+    console.log(`[Stage 4 Complete] ${matched.length} matched, ${unmatched.length} unmatched`);
+
+    return { matched, unmatched };
+}
+
+// Simple string similarity calculation (Dice coefficient)
+function calculateSimilarity(str1, str2) {
+    if (str1 === str2) return 1.0;
+    if (str1.length < 2 || str2.length < 2) return 0;
+
+    const bigrams1 = new Set();
+    for (let i = 0; i < str1.length - 1; i++) {
+        bigrams1.add(str1.substring(i, i + 2));
+    }
+
+    const bigrams2 = new Set();
+    for (let i = 0; i < str2.length - 1; i++) {
+        bigrams2.add(str2.substring(i, i + 2));
+    }
+
+    const intersection = new Set([...bigrams1].filter(x => bigrams2.has(x)));
+    return (2.0 * intersection.size) / (bigrams1.size + bigrams2.size);
+}
+
 // Google Cloud Vision OCR endpoint for document scanning
 app.post('/vision/parse', upload.array('images', 30), async (req, res) => {
     try {
@@ -242,31 +325,31 @@ app.post('/vision/parse', upload.array('images', 30), async (req, res) => {
 
         // Process each image with Google Cloud Vision
         const pages = [];
-        
+
         for (let i = 0; i < images.length; i++) {
             const img = images[i];
             console.log(`[Vision OCR] Processing image ${i + 1}/${images.length}: ${img.originalname}`);
-            
+
             // Construct Vision API request - CORRECT FORMAT
             const request = {
                 image: {
                     content: img.buffer  // Raw buffer, NOT base64 string, NOT "type":"buffer" schema
                 }
             };
-            
+
             // Log request structure (without actual image data)
             console.log('[Vision OCR] Request structure:', JSON.stringify({
                 image: {
                     content: `<Buffer ${img.buffer.length} bytes>`
                 }
             }));
-            
+
             // Call Vision API for document text detection
             const [result] = await visionClient.documentTextDetection(request);
-            
+
             const fullText = result.fullTextAnnotation?.text || '';
             console.log(`[Vision OCR] Extracted ${fullText.length} characters from ${img.originalname}`);
-            
+
             pages.push({
                 filename: img.originalname,
                 text: fullText
@@ -298,7 +381,7 @@ app.post('/vision/parse', upload.array('images', 30), async (req, res) => {
         // Generate scanId and store results
         const scanId = uuidv4();
         const filenames = images.map(img => img.originalname);
-        
+
         scanResults[scanId] = {
             scanId,
             items,
@@ -306,7 +389,7 @@ app.post('/vision/parse', upload.array('images', 30), async (req, res) => {
             createdAt: new Date().toISOString(),
             filenames
         };
-        
+
         console.log(`[Vision OCR] Stored scan ${scanId} with ${items.length} items`);
 
         res.json({
@@ -316,8 +399,8 @@ app.post('/vision/parse', upload.array('images', 30), async (req, res) => {
         });
     } catch (error) {
         console.error(`[Error] ${error.stage || 'unknown'} stage failed:`, error.message);
-        res.status(500).json({ 
-            error: 'Processing failed', 
+        res.status(500).json({
+            error: 'Processing failed',
             message: error.message,
             stage: error.stage || 'unknown'
         });
@@ -504,24 +587,185 @@ app.post('/projects/save-master-list', express.json(), (req, res) => {
 app.get('/projects/:projectName/master-list', (req, res) => {
     try {
         const { projectName } = req.params;
-        
+
         // Validate project name
         if (!validateProjectName(projectName)) {
             return res.status(400).json({ error: 'Invalid project name' });
         }
-        
+
         const projectDir = path.join(DATA_DIR, projectName.replace(/\s+/g, '_'));
         const masterListPath = path.join(projectDir, 'master_list.json');
-        
+
         if (!fs.existsSync(masterListPath)) {
             return res.status(404).json({ error: 'Master list not found' });
         }
-        
+
         const data = JSON.parse(fs.readFileSync(masterListPath, 'utf8'));
         res.json(data);
-        
+
     } catch (error) {
         console.error('[Master List] Retrieve error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// List all saved projects
+app.get('/projects/list', (req, res) => {
+    try {
+        if (!fs.existsSync(DATA_DIR)) {
+            return res.json({ projects: [] });
+        }
+
+        const projectDirs = fs.readdirSync(DATA_DIR);
+        const projects = [];
+
+        projectDirs.forEach(dirName => {
+            const masterListPath = path.join(DATA_DIR, dirName, 'master_list.json');
+            if (fs.existsSync(masterListPath)) {
+                const data = JSON.parse(fs.readFileSync(masterListPath, 'utf8'));
+                projects.push({
+                    name: data.projectName,
+                    itemCount: data.itemCount,
+                    createdAt: data.createdAt
+                });
+            }
+        });
+
+        // Sort by most recent first
+        projects.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        res.json({ projects });
+
+    } catch (error) {
+        console.error('[Projects] List error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Stage 4: Align scanned items with master list
+app.post('/vision/align-master-list', express.json(), (req, res) => {
+    try {
+        const { scanId, projectName } = req.body;
+
+        if (!scanId) {
+            return res.status(400).json({ error: 'scanId required' });
+        }
+
+        if (!projectName) {
+            return res.status(400).json({ error: 'projectName required' });
+        }
+
+        // Get scan results
+        const scan = scanResults[scanId];
+        if (!scan) {
+            return res.status(404).json({ error: 'Scan not found' });
+        }
+
+        // Load master list
+        if (!validateProjectName(projectName)) {
+            return res.status(400).json({ error: 'Invalid project name' });
+        }
+
+        const projectDir = path.join(DATA_DIR, projectName.replace(/\s+/g, '_'));
+        const masterListPath = path.join(projectDir, 'master_list.json');
+
+        if (!fs.existsSync(masterListPath)) {
+            return res.status(404).json({ error: 'Master list not found for this project' });
+        }
+
+        const masterData = JSON.parse(fs.readFileSync(masterListPath, 'utf8'));
+        const masterList = masterData.items;
+
+        // Extract scanned item names
+        const scannedItemNames = scan.items.map(item => item.name);
+
+        // Perform Stage 4: Master List Alignment
+        const alignment = alignWithMasterList(scannedItemNames, masterList);
+
+        // Store alignment results in scan
+        scanResults[scanId].alignment = alignment;
+        scanResults[scanId].projectName = projectName;
+        scanResults[scanId].masterList = masterList;
+
+        console.log(`[Alignment] Completed for scan ${scanId} with project "${projectName}"`);
+
+        res.json({
+            success: true,
+            alignment,
+            masterList
+        });
+
+    } catch (error) {
+        console.error('[Alignment] Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============================================
+// VOICE MAPPING / ALIAS MANAGEMENT ENDPOINTS
+// ============================================
+
+// Save voice aliases for a project
+app.post('/projects/:projectName/aliases', express.json(), (req, res) => {
+    try {
+        const { projectName } = req.params;
+        const { aliases } = req.body;
+
+        if (!validateProjectName(projectName)) {
+            return res.status(400).json({ error: 'Invalid project name' });
+        }
+
+        if (!aliases || typeof aliases !== 'object') {
+            return res.status(400).json({ error: 'Aliases must be an object' });
+        }
+
+        const projectDir = path.join(DATA_DIR, projectName.replace(/\s+/g, '_'));
+        if (!fs.existsSync(projectDir)) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
+
+        // Save aliases to file
+        const aliasesPath = path.join(projectDir, 'aliases.json');
+        const data = {
+            projectName,
+            aliases,
+            updatedAt: new Date().toISOString()
+        };
+
+        fs.writeFileSync(aliasesPath, JSON.stringify(data, null, 2));
+
+        console.log(`[Aliases] Saved ${Object.keys(aliases).length} aliases for project "${projectName}"`);
+
+        res.json({ success: true, aliasCount: Object.keys(aliases).length });
+
+    } catch (error) {
+        console.error('[Aliases] Save error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Retrieve voice aliases for a project
+app.get('/projects/:projectName/aliases', (req, res) => {
+    try {
+        const { projectName } = req.params;
+
+        if (!validateProjectName(projectName)) {
+            return res.status(400).json({ error: 'Invalid project name' });
+        }
+
+        const projectDir = path.join(DATA_DIR, projectName.replace(/\s+/g, '_'));
+        const aliasesPath = path.join(projectDir, 'aliases.json');
+
+        if (!fs.existsSync(aliasesPath)) {
+            // Return empty aliases if none saved yet
+            return res.json({ projectName, aliases: {}, updatedAt: null });
+        }
+
+        const data = JSON.parse(fs.readFileSync(aliasesPath, 'utf8'));
+        res.json(data);
+
+    } catch (error) {
+        console.error('[Aliases] Retrieve error:', error);
         res.status(500).json({ error: error.message });
     }
 });

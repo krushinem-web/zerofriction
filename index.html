@@ -400,6 +400,303 @@
             color: var(--text-muted);
         }
 
+        /* ========== ALIGNMENT UI ========== */
+        .match-badge {
+            display: inline-block;
+            padding: 0.25rem 0.6rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+
+        .match-badge.exact {
+            background: rgba(34, 197, 94, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .match-badge.fuzzy {
+            background: rgba(249, 115, 22, 0.1);
+            color: var(--brand);
+            border: 1px solid var(--glass-border);
+        }
+
+        .match-badge.unmatched {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .project-selector {
+            width: 100%;
+            padding: 1rem 1.25rem;
+            font-size: 1rem;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 1rem;
+            color: var(--text-main);
+            outline: none;
+            margin-bottom: 1.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .project-selector:focus {
+            border-color: var(--brand);
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+        }
+
+        .alignment-section {
+            margin-bottom: 2rem;
+        }
+
+        .alignment-section h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .resolution-controls {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            margin-top: 0.5rem;
+        }
+
+        .resolution-controls select {
+            flex: 1;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.9rem;
+            font-family: 'Inter', sans-serif;
+            background: white;
+            border: 1px solid var(--brand);
+            border-radius: 0.5rem;
+            color: var(--text-main);
+            outline: none;
+        }
+
+        .resolution-controls button {
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+            font-weight: 500;
+            background: var(--brand);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .resolution-controls button:hover {
+            background: #ea580c;
+        }
+
+        .item-detail {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        /* ========== VOICE MAPPING UI ========== */
+        .mic-button {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: var(--brand-gradient);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(249, 115, 22, 0.3);
+        }
+
+        .mic-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(249, 115, 22, 0.4);
+        }
+
+        .mic-button.recording {
+            animation: pulse 1.5s infinite;
+            background: var(--danger);
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .alias-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0.75rem;
+            background: rgba(249, 115, 22, 0.1);
+            border: 1px solid var(--glass-border);
+            border-radius: 1rem;
+            font-size: 0.85rem;
+            color: var(--text-main);
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .alias-chip button {
+            background: none;
+            border: none;
+            color: var(--danger);
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 0;
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .alias-chip button:hover {
+            color: #dc2626;
+        }
+
+        .alias-list {
+            display: flex;
+            flex-wrap: wrap;
+            margin-top: 0.5rem;
+        }
+
+        .add-alias-section {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--glass-border);
+        }
+
+        .alias-input {
+            flex: 1;
+            padding: 0.6rem 0.9rem;
+            font-size: 0.9rem;
+            font-family: 'Inter', sans-serif;
+            background: white;
+            border: 1px solid var(--glass-border);
+            border-radius: 0.75rem;
+            color: var(--text-main);
+            outline: none;
+        }
+
+        .alias-input:focus {
+            border-color: var(--brand);
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+        }
+
+        .small-btn {
+            padding: 0.6rem 1.2rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            background: var(--brand);
+            color: white;
+            border: none;
+            border-radius: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .small-btn:hover {
+            background: #ea580c;
+        }
+
+        .small-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .voice-status {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-align: center;
+            margin-top: 0.5rem;
+            font-style: italic;
+        }
+
+        /* ========== VOICE CONTROL CENTER ========== */
+        .voice-control-center {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 1.5rem;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .mic-button.large {
+            width: 80px;
+            height: 80px;
+            font-size: 2rem;
+            flex-shrink: 0;
+        }
+
+        .voice-feedback {
+            flex: 1;
+        }
+
+        .voice-transcript {
+            font-size: 1rem;
+            color: var(--text-main);
+            font-weight: 500;
+            margin-top: 0.5rem;
+            min-height: 24px;
+        }
+
+        .voice-parsed {
+            font-size: 0.9rem;
+            color: var(--brand);
+            margin-top: 0.5rem;
+            font-weight: 600;
+            min-height: 22px;
+        }
+
+        .count-display {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--brand);
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        }
+
+        .count-display.zero {
+            color: var(--text-muted);
+        }
+
+        .item-row .count-badge {
+            padding: 0.4rem 0.8rem;
+            background: rgba(249, 115, 22, 0.1);
+            border: 1px solid var(--glass-border);
+            border-radius: 0.75rem;
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--brand);
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .item-row .count-badge.zero {
+            background: rgba(113, 113, 122, 0.05);
+            color: var(--text-muted);
+        }
+
         /* ========== UTILITIES ========== */
         .hidden { display: none !important; }
 
@@ -440,6 +737,16 @@
                     <p>Create inventory master list</p>
                 </div>
 
+                <div class="glass-card" onclick="KrushFlow.openDailyScan()">
+                    <div class="icon-container">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                        </svg>
+                    </div>
+                    <h3>Daily Scan</h3>
+                    <p>Scan against master list</p>
+                </div>
+
                 <div class="glass-card" onclick="KrushFlow.openVoiceMapping()">
                     <div class="icon-container">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -458,6 +765,16 @@
                     </div>
                     <h3>Daily Count</h3>
                     <p>Voice-powered counting</p>
+                </div>
+
+                <div class="glass-card" onclick="KrushFlow.loadTestData()" style="border: 2px dashed var(--brand);">
+                    <div class="icon-container">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </div>
+                    <h3>Quick Test</h3>
+                    <p>Load sample data & test export</p>
                 </div>
             </div>
         </main>
@@ -507,6 +824,56 @@
         </div>
     </div>
 
+    <!-- ========== SCREEN: DAILY SCAN (Stage 4 Alignment) ========== -->
+    <div id="screen-daily-scan" class="screen">
+        <div class="phase-header">
+            <button class="back-btn" onclick="KrushFlow.goHome()">
+                <span>←</span> Back
+            </button>
+            <h2>Daily Scan</h2>
+            <div style="width: 80px;"></div>
+        </div>
+
+        <select id="daily-scan-project-selector" class="project-selector">
+            <option value="">Select a project...</option>
+        </select>
+
+        <div class="upload-zone" id="daily-scan-upload-zone" onclick="document.getElementById('daily-scan-file-input').click()">
+            <div class="icon">📸</div>
+            <p><strong>Tap to scan</strong> count sheet</p>
+            <p>Scanned items will be matched against master list</p>
+        </div>
+        <input type="file"
+               id="daily-scan-file-input"
+               accept="image/*"
+               capture="environment"
+               multiple
+               style="display:none">
+
+        <div id="alignment-results" class="hidden">
+            <div class="status-bar">
+                <span>Matched: <span class="count" id="matched-count">0</span></span>
+                <span>Unmatched: <span class="count" style="color: var(--danger);" id="unmatched-count">0</span></span>
+            </div>
+
+            <div class="alignment-section" id="matched-section">
+                <h3>✓ Matched Items</h3>
+                <ul class="item-list" id="matched-list"></ul>
+            </div>
+
+            <div class="alignment-section" id="unmatched-section">
+                <h3>⚠ Unmatched Items</h3>
+                <ul class="item-list" id="unmatched-list"></ul>
+            </div>
+        </div>
+
+        <div class="footer-actions" id="daily-scan-actions" style="display:none;">
+            <button class="btn btn-primary btn-full" onclick="KrushFlow.proceedToCounting()">
+                Proceed to Counting →
+            </button>
+        </div>
+    </div>
+
     <!-- ========== SCREEN: VOICE MAPPING (Phase 2) ========== -->
     <div id="screen-voice-mapping" class="screen">
         <div class="phase-header">
@@ -516,8 +883,24 @@
             <h2>Voice Mapping</h2>
             <div style="width: 80px;"></div>
         </div>
-        <div class="empty-state">
-            <p>Complete New Setup first to load a project</p>
+
+        <select id="voice-mapping-project-selector" class="project-selector">
+            <option value="">Select a project...</option>
+        </select>
+
+        <div id="voice-mapping-content" class="hidden">
+            <div class="status-bar">
+                <span>Master Items: <span class="count" id="vm-master-count">0</span></span>
+                <span>Aliases Trained: <span class="count" id="vm-alias-count">0</span></span>
+            </div>
+
+            <ul class="item-list" id="vm-item-list"></ul>
+        </div>
+
+        <div class="footer-actions" id="voice-mapping-actions" style="display:none;">
+            <button class="btn btn-primary btn-full" onclick="KrushFlow.saveAliases()">
+                Save Voice Mappings
+            </button>
         </div>
     </div>
 
@@ -530,8 +913,32 @@
             <h2>Daily Count</h2>
             <div style="width: 80px;"></div>
         </div>
-        <div class="empty-state">
-            <p>Complete New Setup first to load a project</p>
+
+        <!-- Voice Control Center -->
+        <div class="voice-control-center">
+            <button class="mic-button large" id="count-mic-btn" onclick="KrushFlow.startVoiceCounting()">
+                🎤
+            </button>
+            <div class="voice-feedback" id="voice-feedback">
+                <div class="voice-status" id="count-voice-status">Tap mic to start counting</div>
+                <div class="voice-transcript" id="count-transcript"></div>
+                <div class="voice-parsed" id="count-parsed"></div>
+            </div>
+        </div>
+
+        <div class="status-bar">
+            <span>Items: <span class="count" id="count-items-total">0</span></span>
+            <span>Counted: <span class="count" id="count-items-done">0</span></span>
+        </div>
+
+        <ul class="item-list" id="count-item-list">
+            <li class="empty-state">Start from Daily Scan to load items</li>
+        </ul>
+
+        <div class="footer-actions" id="count-export-actions" style="display:none;">
+            <button class="btn btn-primary btn-full" onclick="KrushFlow.exportFinalCount()">
+                Export Final Count →
+            </button>
         </div>
     </div>
 
@@ -542,6 +949,20 @@ const KrushFlow = {
     // ===== STATE =====
     items: [],
     projectName: '',
+    currentScanId: null,
+    currentAlignment: null,
+    availableProjects: [],
+    selectedProject: null,
+    selectedVoiceProject: null,
+    voiceMappingMasterList: [],
+    voiceMappingAliases: {},
+
+    // Daily Count State
+    countingItems: [],  // Matched items from alignment
+    countingCounts: {}, // { itemName: count }
+    countingProject: null,
+    isListening: false,
+    recognition: null,
 
     // ===== NAVIGATION =====
     showScreen: function(screenId) {
@@ -563,12 +984,98 @@ const KrushFlow = {
         this.showScreen('screen-new-setup');
     },
 
-    openVoiceMapping: function() {
+    openDailyScan: async function() {
+        // Load available projects
+        await this.loadProjects();
+        this.currentScanId = null;
+        this.currentAlignment = null;
+        document.getElementById('alignment-results').classList.add('hidden');
+        document.getElementById('daily-scan-actions').style.display = 'none';
+        this.showScreen('screen-daily-scan');
+    },
+
+    openVoiceMapping: async function() {
+        // Load available projects
+        await this.loadProjects();
+
+        // Populate voice mapping project selector
+        const vmSelector = document.getElementById('voice-mapping-project-selector');
+        vmSelector.innerHTML = '<option value="">Select a project...</option>';
+        this.availableProjects.forEach(project => {
+            const option = document.createElement('option');
+            option.value = project.name;
+            option.textContent = `${project.name} (${project.itemCount} items)`;
+            vmSelector.appendChild(option);
+        });
+
+        // Add change listener
+        vmSelector.onchange = () => this.loadVoiceMappingProject(vmSelector.value);
+
+        // Reset state
+        this.voiceMappingMasterList = [];
+        this.voiceMappingAliases = {};
+        document.getElementById('voice-mapping-content').classList.add('hidden');
+        document.getElementById('voice-mapping-actions').style.display = 'none';
+
         this.showScreen('screen-voice-mapping');
     },
 
     openDailyCount: function() {
         this.showScreen('screen-daily-count');
+    },
+
+    loadTestData: function() {
+        // Load sample restaurant inventory data
+        this.countingProject = 'Test Restaurant';
+        this.countingItems = [
+            'SHRIMP SKEWER (SK)',
+            'CHICKEN BREAST',
+            'SALMON FILLET (PO)',
+            'BEEF TENDERLOIN',
+            'PORK CHOP',
+            'TILAPIA FILLET',
+            'DUCK BREAST',
+            'LAMB CHOP',
+            'SCALLOPS (FR)',
+            'LOBSTER TAIL'
+        ];
+
+        // Set some sample counts (mix of zero and non-zero)
+        this.countingCounts = {
+            'SHRIMP SKEWER (SK)': 7,
+            'CHICKEN BREAST': 52,
+            'SALMON FILLET (PO)': 2,
+            'BEEF TENDERLOIN': 156,
+            'PORK CHOP': 23,
+            'TILAPIA FILLET': 0,
+            'DUCK BREAST': 8,
+            'LAMB CHOP': 0,
+            'SCALLOPS (FR)': 15,
+            'LOBSTER TAIL': 0
+        };
+
+        // Load sample voice aliases
+        this.voiceMappingAliases = {
+            'SHRIMP SKEWER (SK)': ['shrimp', 'shrimp skewer'],
+            'CHICKEN BREAST': ['chicken'],
+            'SALMON FILLET (PO)': ['salmon'],
+            'BEEF TENDERLOIN': ['beef', 'tenderloin'],
+            'PORK CHOP': ['pork'],
+            'TILAPIA FILLET': ['tilapia'],
+            'DUCK BREAST': ['duck'],
+            'LAMB CHOP': ['lamb'],
+            'SCALLOPS (FR)': ['scallops'],
+            'LOBSTER TAIL': ['lobster']
+        };
+
+        // Go to Daily Count screen
+        this.showScreen('screen-daily-count');
+        this.renderCountingItems();
+
+        // Show instruction
+        setTimeout(() => {
+            alert('Test data loaded!\n\nTry voice commands:\n• "add 5 shrimp"\n• "set chicken to 100"\n• "subtract 3 salmon"\n\nThen click "Export Final Count" to download CSV with ALL items (including zeros)');
+        }, 300);
     },
 
     // ===== FILE HANDLING =====
@@ -815,15 +1322,671 @@ const KrushFlow = {
         return div.innerHTML;
     },
 
+    // ===== DAILY SCAN FUNCTIONS =====
+    loadProjects: async function() {
+        try {
+            const response = await fetch('/projects/list');
+            const data = await response.json();
+            this.availableProjects = data.projects || [];
+
+            const selector = document.getElementById('daily-scan-project-selector');
+            selector.innerHTML = '<option value="">Select a project...</option>';
+
+            this.availableProjects.forEach(project => {
+                const option = document.createElement('option');
+                option.value = project.name;
+                option.textContent = `${project.name} (${project.itemCount} items)`;
+                selector.appendChild(option);
+            });
+
+        } catch (error) {
+            console.error('Failed to load projects:', error);
+        }
+    },
+
+    handleDailyScanFiles: async function(files) {
+        if (!files || files.length === 0) return;
+
+        const selectedProject = document.getElementById('daily-scan-project-selector').value;
+        if (!selectedProject) {
+            alert('Please select a project first');
+            return;
+        }
+
+        this.selectedProject = selectedProject;
+
+        // Upload and process images
+        const formData = new FormData();
+        Array.from(files).forEach(file => formData.append('images', file));
+
+        try {
+            const response = await fetch('/vision/parse', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error('Scan failed');
+            }
+
+            const data = await response.json();
+            this.currentScanId = data.scanId;
+
+            // Perform alignment
+            await this.performAlignment();
+
+        } catch (error) {
+            console.error('Daily scan error:', error);
+            alert('Scan failed: ' + error.message);
+        }
+    },
+
+    performAlignment: async function() {
+        if (!this.currentScanId || !this.selectedProject) return;
+
+        try {
+            const response = await fetch('/vision/align-master-list', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    scanId: this.currentScanId,
+                    projectName: this.selectedProject
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Alignment failed');
+            }
+
+            const data = await response.json();
+            this.currentAlignment = data.alignment;
+
+            // Display alignment results
+            this.renderAlignmentResults();
+
+        } catch (error) {
+            console.error('Alignment error:', error);
+            alert('Alignment failed: ' + error.message);
+        }
+    },
+
+    renderAlignmentResults: function() {
+        if (!this.currentAlignment) return;
+
+        const { matched, unmatched } = this.currentAlignment;
+
+        // Update counts
+        document.getElementById('matched-count').textContent = matched.length;
+        document.getElementById('unmatched-count').textContent = unmatched.length;
+
+        // Render matched items
+        const matchedList = document.getElementById('matched-list');
+        if (matched.length === 0) {
+            matchedList.innerHTML = '<li class="empty-state">No matched items</li>';
+        } else {
+            matchedList.innerHTML = matched.map((item, idx) => `
+                <li class="item-row">
+                    <span class="item-number">${idx + 1}</span>
+                    <div style="flex: 1;">
+                        <div class="item-name">${this.escapeHtml(item.masterName)}</div>
+                        ${item.matchType === 'fuzzy' ?
+                            `<div class="item-detail">Scanned as: "${this.escapeHtml(item.scannedName)}"</div>` : ''}
+                    </div>
+                    <span class="match-badge ${item.matchType}">${item.matchType} ${Math.round(item.confidence * 100)}%</span>
+                </li>
+            `).join('');
+        }
+
+        // Render unmatched items
+        const unmatchedList = document.getElementById('unmatched-list');
+        if (unmatched.length === 0) {
+            unmatchedList.innerHTML = '<li class="empty-state">All items matched!</li>';
+        } else {
+            unmatchedList.innerHTML = unmatched.map((item, idx) => `
+                <li class="item-row">
+                    <span class="item-number">${idx + 1}</span>
+                    <div style="flex: 1;">
+                        <div class="item-name">${this.escapeHtml(item.scannedName)}</div>
+                        ${item.suggestedMatch ?
+                            `<div class="item-detail">Suggested: "${this.escapeHtml(item.suggestedMatch)}" (${Math.round(item.confidence * 100)}%)</div>` :
+                            `<div class="item-detail">No similar items found</div>`}
+                    </div>
+                    <span class="match-badge unmatched">unmatched</span>
+                </li>
+            `).join('');
+        }
+
+        // Show results
+        document.getElementById('alignment-results').classList.remove('hidden');
+
+        // Show proceed button if all items are matched or user can resolve
+        if (unmatched.length === 0) {
+            document.getElementById('daily-scan-actions').style.display = 'block';
+        }
+    },
+
+    proceedToCounting: function() {
+        if (!this.currentAlignment || !this.selectedProject) {
+            alert('No alignment data available');
+            return;
+        }
+
+        // Extract matched items for counting
+        this.countingItems = this.currentAlignment.matched.map(m => m.masterName);
+        this.countingProject = this.selectedProject;
+
+        // Initialize counts to 0
+        this.countingCounts = {};
+        this.countingItems.forEach(item => {
+            this.countingCounts[item] = 0;
+        });
+
+        // Transition to Daily Count screen
+        this.showScreen('screen-daily-count');
+        this.renderCountingItems();
+    },
+
+    // ===== DAILY COUNT FUNCTIONS =====
+    renderCountingItems: function() {
+        const list = document.getElementById('count-item-list');
+        const totalEl = document.getElementById('count-items-total');
+        const doneEl = document.getElementById('count-items-done');
+
+        totalEl.textContent = this.countingItems.length;
+
+        // Count how many items have non-zero counts
+        const counted = Object.values(this.countingCounts).filter(c => c > 0).length;
+        doneEl.textContent = counted;
+
+        if (this.countingItems.length === 0) {
+            list.innerHTML = '<li class="empty-state">Start from Daily Scan to load items</li>';
+            document.getElementById('count-export-actions').style.display = 'none';
+            return;
+        }
+
+        // Show export button
+        document.getElementById('count-export-actions').style.display = 'block';
+
+        // Render items with counts
+        list.innerHTML = this.countingItems.map((item, idx) => {
+            const count = this.countingCounts[item] || 0;
+            return `
+                <li class="item-row">
+                    <span class="item-number">${idx + 1}</span>
+                    <span class="item-name">${this.escapeHtml(item)}</span>
+                    <span class="count-badge ${count === 0 ? 'zero' : ''}">${count}</span>
+                </li>
+            `;
+        }).join('');
+    },
+
+    startVoiceCounting: function() {
+        // Check if browser supports Web Speech API
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            alert('Voice recognition is not supported in your browser.');
+            return;
+        }
+
+        if (this.countingItems.length === 0) {
+            alert('No items loaded. Please complete Daily Scan first.');
+            return;
+        }
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (!this.recognition) {
+            this.recognition = new SpeechRecognition();
+            this.recognition.lang = 'en-US';
+            this.recognition.continuous = false;
+            this.recognition.interimResults = false;
+            this.recognition.maxAlternatives = 1;
+
+            this.recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                this.processVoiceCommand(transcript);
+            };
+
+            this.recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                document.getElementById('count-voice-status').textContent = 'Error: ' + event.error;
+                this.stopListening();
+            };
+
+            this.recognition.onend = () => {
+                this.stopListening();
+            };
+        }
+
+        // Start listening
+        this.isListening = true;
+        document.getElementById('count-mic-btn').classList.add('recording');
+        document.getElementById('count-voice-status').textContent = 'Listening...';
+        document.getElementById('count-transcript').textContent = '';
+        document.getElementById('count-parsed').textContent = '';
+
+        try {
+            this.recognition.start();
+        } catch (error) {
+            console.error('Failed to start recognition:', error);
+            this.stopListening();
+        }
+    },
+
+    stopListening: function() {
+        this.isListening = false;
+        document.getElementById('count-mic-btn').classList.remove('recording');
+        document.getElementById('count-voice-status').textContent = 'Tap mic to count';
+    },
+
+    // Stage 6: Voice Parsing - Extract item, operation, quantity
+    processVoiceCommand: async function(transcript) {
+        console.log('[Voice Command] Raw transcript:', transcript);
+
+        document.getElementById('count-transcript').textContent = `Heard: "${transcript}"`;
+        document.getElementById('count-voice-status').textContent = 'Processing...';
+
+        try {
+            // Use Claude to parse the voice command
+            const parsed = await this.parseVoiceCommand(transcript);
+
+            if (!parsed.success) {
+                document.getElementById('count-parsed').textContent = '❌ ' + (parsed.error || 'Could not understand command');
+                document.getElementById('count-voice-status').textContent = 'Try again';
+                return;
+            }
+
+            // Display parsed command
+            document.getElementById('count-parsed').textContent =
+                `✓ ${parsed.operation} ${parsed.quantity} ${parsed.item}`;
+
+            // Stage 7: Apply state mutation
+            this.applyCountMutation(parsed);
+
+        } catch (error) {
+            console.error('[Voice Command] Error:', error);
+            document.getElementById('count-parsed').textContent = '❌ Processing failed';
+            document.getElementById('count-voice-status').textContent = 'Try again';
+        }
+    },
+
+    // Parse voice command using deterministic logic + AI assist
+    parseVoiceCommand: async function(transcript) {
+        const lowerTranscript = transcript.toLowerCase().trim();
+
+        // Build item list with aliases for matching
+        const itemMap = {};
+        this.countingItems.forEach(item => {
+            itemMap[item.toLowerCase()] = item;
+        });
+
+        // Load aliases if available
+        const aliases = this.voiceMappingAliases || {};
+        Object.keys(aliases).forEach(masterItem => {
+            if (Array.isArray(aliases[masterItem])) {
+                aliases[masterItem].forEach(alias => {
+                    itemMap[alias.toLowerCase()] = masterItem;
+                });
+            }
+        });
+
+        // Try to parse locally first using simple patterns
+        const patterns = [
+            /(?:add|plus|\+)\s+(\d+)\s+(.+)/i,           // "add 5 shrimp"
+            /(?:subtract|minus|\-)\s+(\d+)\s+(.+)/i,     // "subtract 3 chicken"
+            /(?:set|make)\s+(.+?)\s+(?:to\s+)?(\d+)/i,   // "set chicken to 23"
+            /(.+?)\s+(?:add|plus|\+)\s+(\d+)/i,          // "shrimp add 5"
+            /(.+?)\s+(?:subtract|minus|\-)\s+(\d+)/i,    // "chicken minus 3"
+        ];
+
+        for (const pattern of patterns) {
+            const match = lowerTranscript.match(pattern);
+            if (match) {
+                let operation, quantity, itemPhrase;
+
+                if (pattern.toString().includes('add')) {
+                    operation = 'ADD';
+                    quantity = parseInt(match[1]);
+                    itemPhrase = match[2];
+                } else if (pattern.toString().includes('subtract')) {
+                    operation = 'SUBTRACT';
+                    quantity = parseInt(match[1]);
+                    itemPhrase = match[2];
+                } else if (pattern.toString().includes('set')) {
+                    operation = 'SET';
+                    itemPhrase = match[1];
+                    quantity = parseInt(match[2]);
+                } else if (pattern.toString().includes('plus')) {
+                    if (match[2]) {
+                        operation = 'ADD';
+                        itemPhrase = match[1];
+                        quantity = parseInt(match[2]);
+                    }
+                } else if (pattern.toString().includes('minus')) {
+                    if (match[2]) {
+                        operation = 'SUBTRACT';
+                        itemPhrase = match[1];
+                        quantity = parseInt(match[2]);
+                    }
+                }
+
+                // Try to match item
+                const matchedItem = itemMap[itemPhrase.trim()];
+                if (matchedItem && !isNaN(quantity) && quantity > 0) {
+                    return {
+                        success: true,
+                        item: matchedItem,
+                        operation: operation,
+                        quantity: quantity
+                    };
+                }
+            }
+        }
+
+        // Local parsing failed - return error (no AI fallback per "no guessing" principle)
+        return {
+            success: false,
+            error: 'Could not match item or parse command'
+        };
+    },
+
+    // Stage 7: State Mutation - Apply ADD/SUBTRACT/SET operations
+    applyCountMutation: function(parsed) {
+        const { item, operation, quantity } = parsed;
+
+        // Validate item exists
+        if (!this.countingCounts.hasOwnProperty(item)) {
+            console.error('[State Mutation] Item not found:', item);
+            document.getElementById('count-parsed').textContent = '❌ Item not in list';
+            return;
+        }
+
+        const currentCount = this.countingCounts[item];
+        let newCount;
+
+        // Apply strict arithmetic mutation
+        switch (operation) {
+            case 'ADD':
+                newCount = currentCount + quantity;
+                break;
+            case 'SUBTRACT':
+                newCount = Math.max(0, currentCount - quantity); // Prevent negative
+                break;
+            case 'SET':
+                newCount = quantity;
+                break;
+            default:
+                console.error('[State Mutation] Invalid operation:', operation);
+                return;
+        }
+
+        // Apply mutation
+        this.countingCounts[item] = newCount;
+
+        console.log(`[State Mutation] ${item}: ${currentCount} → ${newCount} (${operation} ${quantity})`);
+
+        // Update UI
+        this.renderCountingItems();
+        document.getElementById('count-voice-status').textContent = `Updated: ${item} = ${newCount}`;
+
+        // Brief success feedback
+        setTimeout(() => {
+            document.getElementById('count-voice-status').textContent = 'Tap mic to count';
+            document.getElementById('count-transcript').textContent = '';
+            document.getElementById('count-parsed').textContent = '';
+        }, 2000);
+    },
+
+    // Stage 8: Final Output - Export complete list including zero-count items
+    exportFinalCount: function() {
+        if (this.countingItems.length === 0) {
+            alert('No items to export');
+            return;
+        }
+
+        // Build complete ordered list with all items (including zeros)
+        const exportData = this.countingItems.map(item => ({
+            item: item,
+            count: this.countingCounts[item] || 0
+        }));
+
+        // Generate CSV
+        const csvLines = ['Item,Count'];
+        exportData.forEach(row => {
+            const escapedItem = `"${row.item.replace(/"/g, '""')}"`;
+            csvLines.push(`${escapedItem},${row.count}`);
+        });
+        const csv = csvLines.join('\n');
+
+        // Download CSV
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `${this.countingProject}_count_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        console.log('[Export] Downloaded CSV with', exportData.length, 'items');
+        alert(`Exported ${exportData.length} items (including zero-count items)`);
+    },
+
+    // ===== VOICE MAPPING FUNCTIONS =====
+    loadVoiceMappingProject: async function(projectName) {
+        if (!projectName) {
+            document.getElementById('voice-mapping-content').classList.add('hidden');
+            document.getElementById('voice-mapping-actions').style.display = 'none';
+            return;
+        }
+
+        this.selectedVoiceProject = projectName;
+
+        try {
+            // Load master list
+            const masterResponse = await fetch(`/projects/${encodeURIComponent(projectName)}/master-list`);
+            const masterData = await masterResponse.json();
+            this.voiceMappingMasterList = masterData.items || [];
+
+            // Load existing aliases
+            const aliasResponse = await fetch(`/projects/${encodeURIComponent(projectName)}/aliases`);
+            const aliasData = await aliasResponse.json();
+            this.voiceMappingAliases = aliasData.aliases || {};
+
+            // Render the voice mapping interface
+            this.renderVoiceMappingItems();
+
+            document.getElementById('voice-mapping-content').classList.remove('hidden');
+            document.getElementById('voice-mapping-actions').style.display = 'block';
+
+        } catch (error) {
+            console.error('Failed to load voice mapping project:', error);
+            alert('Failed to load project: ' + error.message);
+        }
+    },
+
+    renderVoiceMappingItems: function() {
+        const list = document.getElementById('vm-item-list');
+        document.getElementById('vm-master-count').textContent = this.voiceMappingMasterList.length;
+
+        // Count total aliases
+        let totalAliases = 0;
+        Object.keys(this.voiceMappingAliases).forEach(key => {
+            const aliases = this.voiceMappingAliases[key];
+            if (Array.isArray(aliases)) {
+                totalAliases += aliases.length;
+            }
+        });
+        document.getElementById('vm-alias-count').textContent = totalAliases;
+
+        // Render each master item with alias management
+        list.innerHTML = this.voiceMappingMasterList.map((masterItem, idx) => {
+            const itemKey = masterItem.toLowerCase().trim();
+            const aliases = this.voiceMappingAliases[masterItem] || [];
+
+            return `
+                <li class="item-row">
+                    <span class="item-number">${idx + 1}</span>
+                    <div style="flex: 1;">
+                        <div class="item-name">${this.escapeHtml(masterItem)}</div>
+
+                        ${aliases.length > 0 ? `
+                            <div class="alias-list">
+                                ${aliases.map(alias => `
+                                    <span class="alias-chip">
+                                        ${this.escapeHtml(alias)}
+                                        <button onclick="KrushFlow.removeAlias('${this.escapeHtml(masterItem)}', '${this.escapeHtml(alias)}')" title="Remove alias">×</button>
+                                    </span>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+
+                        <div class="add-alias-section">
+                            <button class="mic-button" id="mic-${idx}" onclick="KrushFlow.recordAlias(${idx}, '${this.escapeHtml(masterItem)}')" title="Record voice alias">
+                                🎤
+                            </button>
+                            <input type="text"
+                                   class="alias-input"
+                                   id="alias-input-${idx}"
+                                   placeholder="Type or speak an alias..."
+                                   onkeydown="if(event.key==='Enter')KrushFlow.addAlias(${idx}, '${this.escapeHtml(masterItem)}')">
+                            <button class="small-btn" onclick="KrushFlow.addAlias(${idx}, '${this.escapeHtml(masterItem)}')">Add</button>
+                        </div>
+                        <div class="voice-status" id="voice-status-${idx}"></div>
+                    </div>
+                </li>
+            `;
+        }).join('');
+    },
+
+    recordAlias: function(idx, masterItem) {
+        // Check if browser supports Web Speech API
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            alert('Voice recognition is not supported in your browser. Please type the alias manually.');
+            return;
+        }
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        const micButton = document.getElementById(`mic-${idx}`);
+        const statusEl = document.getElementById(`voice-status-${idx}`);
+        const inputEl = document.getElementById(`alias-input-${idx}`);
+
+        micButton.classList.add('recording');
+        statusEl.textContent = 'Listening...';
+
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            inputEl.value = transcript.toLowerCase().trim();
+            statusEl.textContent = `Heard: "${transcript}"`;
+            micButton.classList.remove('recording');
+        };
+
+        recognition.onerror = (event) => {
+            console.error('Speech recognition error:', event.error);
+            statusEl.textContent = 'Error: ' + event.error;
+            micButton.classList.remove('recording');
+        };
+
+        recognition.onend = () => {
+            micButton.classList.remove('recording');
+        };
+
+        try {
+            recognition.start();
+        } catch (error) {
+            console.error('Failed to start recognition:', error);
+            statusEl.textContent = 'Failed to start recording';
+            micButton.classList.remove('recording');
+        }
+    },
+
+    addAlias: function(idx, masterItem) {
+        const inputEl = document.getElementById(`alias-input-${idx}`);
+        const alias = inputEl.value.trim().toLowerCase();
+
+        if (!alias) {
+            alert('Please enter or record an alias');
+            return;
+        }
+
+        // Initialize aliases array if needed
+        if (!this.voiceMappingAliases[masterItem]) {
+            this.voiceMappingAliases[masterItem] = [];
+        }
+
+        // Check if alias already exists
+        if (this.voiceMappingAliases[masterItem].includes(alias)) {
+            alert('This alias already exists');
+            return;
+        }
+
+        // Add the alias
+        this.voiceMappingAliases[masterItem].push(alias);
+
+        // Clear input and re-render
+        inputEl.value = '';
+        const statusEl = document.getElementById(`voice-status-${idx}`);
+        if (statusEl) statusEl.textContent = '';
+
+        this.renderVoiceMappingItems();
+    },
+
+    removeAlias: function(masterItem, alias) {
+        if (!this.voiceMappingAliases[masterItem]) return;
+
+        this.voiceMappingAliases[masterItem] = this.voiceMappingAliases[masterItem].filter(a => a !== alias);
+
+        // Remove the key if no aliases left
+        if (this.voiceMappingAliases[masterItem].length === 0) {
+            delete this.voiceMappingAliases[masterItem];
+        }
+
+        this.renderVoiceMappingItems();
+    },
+
+    saveAliases: async function() {
+        if (!this.selectedVoiceProject) {
+            alert('No project selected');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/projects/${encodeURIComponent(this.selectedVoiceProject)}/aliases`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    aliases: this.voiceMappingAliases
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to save aliases');
+            }
+
+            const data = await response.json();
+            alert(`Saved ${data.aliasCount} voice mappings successfully!`);
+
+        } catch (error) {
+            console.error('Failed to save aliases:', error);
+            alert('Failed to save aliases: ' + error.message);
+        }
+    },
+
     // ===== INIT =====
     init: function() {
-        // File input handler
+        // File input handler - New Setup
         document.getElementById('file-input').addEventListener('change', (e) => {
             this.handleFiles(Array.from(e.target.files));
             e.target.value = '';
         });
 
-        // Drag and drop
+        // Drag and drop - New Setup
         const uploadZone = document.getElementById('upload-zone');
 
         uploadZone.addEventListener('dragover', (e) => {
@@ -839,6 +2002,30 @@ const KrushFlow = {
             e.preventDefault();
             uploadZone.classList.remove('dragover');
             this.handleFiles(Array.from(e.dataTransfer.files));
+        });
+
+        // File input handler - Daily Scan
+        document.getElementById('daily-scan-file-input').addEventListener('change', (e) => {
+            this.handleDailyScanFiles(Array.from(e.target.files));
+            e.target.value = '';
+        });
+
+        // Drag and drop - Daily Scan
+        const dailyScanUploadZone = document.getElementById('daily-scan-upload-zone');
+
+        dailyScanUploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dailyScanUploadZone.classList.add('dragover');
+        });
+
+        dailyScanUploadZone.addEventListener('dragleave', () => {
+            dailyScanUploadZone.classList.remove('dragover');
+        });
+
+        dailyScanUploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dailyScanUploadZone.classList.remove('dragover');
+            this.handleDailyScanFiles(Array.from(e.dataTransfer.files));
         });
     }
 };
