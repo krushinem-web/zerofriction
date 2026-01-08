@@ -205,6 +205,44 @@
         }
 
         /* ========== PROJECT NAME INPUT ========== */
+        .input-section-highlight {
+            background: linear-gradient(135deg, rgba(249, 115, 22, 0.05) 0%, rgba(251, 146, 60, 0.05) 100%);
+            border: 2px solid var(--brand);
+            border-radius: 1.25rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .input-label-prominent {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 0.75rem;
+        }
+
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            background: var(--brand);
+            color: white;
+            border-radius: 50%;
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        .input-hint {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+            margin-bottom: 0;
+        }
+
         .project-name-input {
             width: 100%;
             padding: 1rem 1.25rem;
@@ -697,6 +735,34 @@
             color: var(--text-muted);
         }
 
+        /* ========== BOTTOM HOME BUTTON ========== */
+        .bottom-home-btn {
+            display: block;
+            width: 100%;
+            max-width: 400px;
+            margin: 2rem auto 1rem;
+            padding: 1rem;
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 1rem;
+            color: var(--text-main);
+            font-size: 1rem;
+            font-weight: 600;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .bottom-home-btn:hover {
+            background: rgba(249, 115, 22, 0.05);
+            border-color: var(--brand);
+            transform: translateY(-1px);
+        }
+
+        .bottom-home-btn:active {
+            transform: translateY(0);
+        }
+
         /* ========== UTILITIES ========== */
         .hidden { display: none !important; }
 
@@ -790,11 +856,19 @@
             <div style="width: 80px;"></div>
         </div>
 
-        <input type="text" 
-               id="project-name" 
-               class="project-name-input" 
-               placeholder="Enter project name..."
-               maxlength="100">
+        <div class="input-section-highlight">
+            <label for="project-name" class="input-label-prominent">
+                <span class="step-number">1</span>
+                Name Your Project
+            </label>
+            <input type="text"
+                   id="project-name"
+                   class="project-name-input"
+                   placeholder="e.g., Restaurant ABC, Warehouse 1..."
+                   maxlength="100"
+                   autofocus>
+            <p class="input-hint">This name will be used to identify your inventory lists</p>
+        </div>
 
         <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
             <div class="icon">📷</div>
@@ -822,6 +896,10 @@
                 Save & Lock Items
             </button>
         </div>
+
+        <button class="bottom-home-btn" onclick="KrushFlow.goHome()">
+            ← Back Home
+        </button>
     </div>
 
     <!-- ========== SCREEN: DAILY SCAN (Stage 4 Alignment) ========== -->
@@ -872,6 +950,10 @@
                 Proceed to Counting →
             </button>
         </div>
+
+        <button class="bottom-home-btn" onclick="KrushFlow.goHome()">
+            ← Back Home
+        </button>
     </div>
 
     <!-- ========== SCREEN: VOICE MAPPING (Phase 2) ========== -->
@@ -902,6 +984,10 @@
                 Save Voice Mappings
             </button>
         </div>
+
+        <button class="bottom-home-btn" onclick="KrushFlow.goHome()">
+            ← Back Home
+        </button>
     </div>
 
     <!-- ========== SCREEN: DAILY COUNT (Phase 3) ========== -->
@@ -940,6 +1026,10 @@
                 Export Final Count →
             </button>
         </div>
+
+        <button class="bottom-home-btn" onclick="KrushFlow.goHome()">
+            ← Back Home
+        </button>
     </div>
 
 </div>
@@ -1020,8 +1110,36 @@ const KrushFlow = {
         this.showScreen('screen-voice-mapping');
     },
 
-    openDailyCount: function() {
+    openDailyCount: async function() {
+        // Check if we already have counting items loaded
+        if (this.countingItems.length > 0) {
+            this.showScreen('screen-daily-count');
+            this.renderCountingItems();
+            return;
+        }
+
+        // If no items loaded, check if there's a current alignment from Daily Scan
+        if (this.currentAlignment && this.currentAlignment.matched.length > 0) {
+            this.countingItems = this.currentAlignment.matched.map(m => m.masterName);
+            this.countingProject = this.selectedProject || 'Unknown Project';
+
+            // Initialize counts to 0
+            this.countingCounts = {};
+            this.countingItems.forEach(item => {
+                this.countingCounts[item] = 0;
+            });
+
+            this.showScreen('screen-daily-count');
+            this.renderCountingItems();
+            return;
+        }
+
+        // No alignment data - prompt user to select a project and load its master list
+        alert('No items loaded. Please complete Daily Scan first, or load a project from the dropdown below.');
+
+        // Show the screen anyway with project selector
         this.showScreen('screen-daily-count');
+        this.renderCountingItems();
     },
 
     loadTestData: function() {
