@@ -1,5 +1,6 @@
 [build]
 builder = "NIXPACKS"
+buildCommand = "echo 'Build skipped - pnpm install handles everything'"
 
 [deploy]
 startCommand = "node server.js"
