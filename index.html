@@ -54,16 +54,39 @@
             color: var(--text-main);
             font-family: 'Inter', sans-serif;
             min-height: 100vh;
-            background-image: 
+            background-image:
                 radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.05) 0%, transparent 40%),
                 radial-gradient(circle at 100% 100%, rgba(239, 68, 68, 0.05) 0%, transparent 40%);
+            background-size: 100% 100%;
+            animation: subtleGradientShift 20s ease-in-out infinite;
+        }
+
+        @keyframes subtleGradientShift {
+            0%, 100% {
+                background-position: 0% 0%, 100% 100%;
+            }
+            50% {
+                background-position: 5% 5%, 95% 95%;
+            }
         }
 
         .container { max-width: 900px; margin: 0 auto; padding: 2rem; }
 
         /* ========== SCREEN MANAGEMENT ========== */
-        .screen { display: none; }
-        .screen.active { display: block; }
+        .screen {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .screen.active {
+            display: block;
+            animation: fadeIn 0.3s ease-in-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
 
         /* ========== HEADER ========== */
         header {
@@ -113,7 +136,7 @@
             border-radius: 1.5rem;
             padding: 2.5rem 1.5rem;
             text-align: center;
-            transition: all 0.3s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: 0 4px 20px rgba(0,0,0,0.03);
             cursor: pointer;
             display: flex;
@@ -338,7 +361,19 @@
             border: 1px solid var(--glass-border);
             border-radius: 1rem;
             margin-bottom: 0.625rem;
-            transition: all 0.2s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: slideInUp 0.3s ease-out;
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .item-row:hover {
@@ -422,7 +457,7 @@
             border: none;
             border-radius: 1rem;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .btn:disabled {
@@ -1089,8 +1124,13 @@
             <span id="save-status" style="font-size: 0.85rem; color: var(--text-muted);">Not saved yet</span>
         </div>
 
+        <!-- Project Selector for Loading Master List -->
+        <select id="live-count-project-selector" class="project-selector" onchange="KrushFlow.loadLiveCountProject(this.value)">
+            <option value="">📂 Select a master list to begin counting...</option>
+        </select>
+
         <!-- Voice Control Center -->
-        <div class="voice-control-center">
+        <div class="voice-control-center" id="live-count-controls" style="display:none;">
             <button class="mic-button large" id="count-mic-btn" onclick="KrushFlow.toggleVoiceCounting()">
                 🎤
             </button>
@@ -1215,8 +1255,12 @@ const KrushFlow = {
     },
 
     openDailyCount: async function() {
+        // Load available projects into selector
+        await this.loadProjectsForLiveCount();
+
         // Check if we already have counting items loaded
         if (this.countingItems.length > 0) {
+            document.getElementById('live-count-controls').style.display = 'flex';
             this.showScreen('screen-daily-count');
             this.renderCountingItems();
             this.startAutosave(); // Start 3-minute autosave
@@ -1234,18 +1278,131 @@ const KrushFlow = {
                 this.countingCounts[item] = 0;
             });
 
+            document.getElementById('live-count-controls').style.display = 'flex';
             this.showScreen('screen-daily-count');
             this.renderCountingItems();
             this.startAutosave(); // Start 3-minute autosave
             return;
         }
 
-        // No alignment data - prompt user to select a project and load its master list
-        alert('No items loaded. Please complete Daily Scan first, or load a project from the dropdown below.');
-
-        // Show the screen anyway with project selector
+        // Show screen with project selector
+        document.getElementById('live-count-controls').style.display = 'none';
         this.showScreen('screen-daily-count');
-        this.renderCountingItems();
+        this.updateSaveStatus('Select a project to begin');
+    },
+
+    // Load available projects into Live Count selector
+    loadProjectsForLiveCount: async function() {
+        try {
+            // Load from server
+            const response = await fetch('/projects/list');
+            const data = await response.json();
+            this.availableProjects = data.projects || [];
+
+            // Also load from localStorage as fallback
+            const localProjects = JSON.parse(localStorage.getItem('krushflow_projects') || '[]');
+
+            // Merge server and local projects (dedupe by name)
+            const allProjects = [...this.availableProjects];
+            localProjects.forEach(localProj => {
+                if (!allProjects.find(p => p.name === localProj.name)) {
+                    allProjects.push(localProj);
+                }
+            });
+
+            const selector = document.getElementById('live-count-project-selector');
+            selector.innerHTML = '<option value="">📂 Select a master list to begin counting...</option>';
+
+            allProjects.forEach(project => {
+                const option = document.createElement('option');
+                option.value = project.name;
+                option.textContent = `${project.name} (${project.itemCount || 0} items)`;
+                selector.appendChild(option);
+            });
+
+            console.log('[Live Count] Loaded', allProjects.length, 'projects');
+        } catch (error) {
+            console.error('Failed to load projects for Live Count:', error);
+        }
+    },
+
+    // Load selected project into Live Count
+    loadLiveCountProject: async function(projectName) {
+        if (!projectName) {
+            return;
+        }
+
+        this.updateSaveStatus('Loading project...');
+
+        try {
+            // Try to load from server first
+            let masterList = [];
+            let aliases = {};
+
+            try {
+                const response = await fetch(`/projects/${encodeURIComponent(projectName)}/master-list`);
+                if (response.ok) {
+                    const data = await response.json();
+                    masterList = data.items || [];
+                }
+            } catch (error) {
+                console.log('[Live Count] Server load failed, trying localStorage');
+            }
+
+            // Fallback to localStorage
+            if (masterList.length === 0) {
+                const projectData = localStorage.getItem('krushflow_project_' + projectName);
+                if (projectData) {
+                    const parsed = JSON.parse(projectData);
+                    masterList = parsed.items.map(item => item.name || item);
+                }
+            }
+
+            if (masterList.length === 0) {
+                alert('Could not load project. Please try again.');
+                this.updateSaveStatus('Failed to load');
+                return;
+            }
+
+            // Load aliases (try server, fallback to localStorage)
+            try {
+                const aliasResponse = await fetch(`/projects/${encodeURIComponent(projectName)}/aliases`);
+                if (aliasResponse.ok) {
+                    const aliasData = await aliasResponse.json();
+                    aliases = aliasData.aliases || {};
+                }
+            } catch (error) {
+                console.log('[Live Count] Aliases not loaded from server');
+            }
+
+            // Set up Live Count state
+            this.countingProject = projectName;
+            this.countingItems = masterList;
+            this.voiceMappingAliases = aliases;
+
+            // Initialize all counts to 0
+            this.countingCounts = {};
+            this.countingItems.forEach(item => {
+                this.countingCounts[item] = 0;
+            });
+
+            // Show voice controls
+            document.getElementById('live-count-controls').style.display = 'flex';
+
+            // Render items
+            this.renderCountingItems();
+
+            // Start autosave
+            this.startAutosave();
+
+            console.log('[Live Count] Loaded project:', projectName, 'with', masterList.length, 'items');
+            this.updateSaveStatus('Project loaded - ready to count');
+
+        } catch (error) {
+            console.error('[Live Count] Error loading project:', error);
+            alert('Error loading project: ' + error.message);
+            this.updateSaveStatus('Error loading project');
+        }
     },
 
     loadTestData: function() {
@@ -1291,6 +1448,9 @@ const KrushFlow = {
             'SCALLOPS (FR)': ['scallops'],
             'LOBSTER TAIL': ['lobster']
         };
+
+        // Show voice controls
+        document.getElementById('live-count-controls').style.display = 'flex';
 
         // Go to Daily Count screen
         this.showScreen('screen-daily-count');
