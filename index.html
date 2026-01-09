@@ -1506,49 +1506,50 @@
         <button class="bottom-home-btn" onclick="KrushFlow.goHome()">
             ← Back Home
         </button>
+    </div>
 
-        <!-- Manual Adjustment Modal -->
-        <div id="manual-adjust-modal" class="modal" style="display:none;" onclick="if(event.target.id==='manual-adjust-modal') KrushFlow.closeManualAdjust()">
-            <div class="modal-content" onclick="event.stopPropagation()">
-                <div class="modal-header">
-                    <h3 id="adjust-item-name">Manual Adjustment</h3>
-                    <button class="close-btn" onclick="KrushFlow.closeManualAdjust()">×</button>
-                </div>
-                <div class="modal-body">
-                    <div class="count-adjustment">
-                        <button class="btn-adjust" onclick="KrushFlow.adjustCount(-10)">-10</button>
-                        <button class="btn-adjust" onclick="KrushFlow.adjustCount(-1)">-1</button>
-                        <input type="number" id="manual-count-input" class="count-input" min="0" value="0">
-                        <button class="btn-adjust" onclick="KrushFlow.adjustCount(1)">+1</button>
-                        <button class="btn-adjust" onclick="KrushFlow.adjustCount(10)">+10</button>
-                    </div>
-                    <div class="modal-actions">
-                        <button class="btn btn-secondary" onclick="KrushFlow.closeManualAdjust()">Cancel</button>
-                        <button class="btn btn-primary" onclick="KrushFlow.saveManualAdjust()">Save</button>
-                    </div>
-                </div>
-            </div>
+</div>
+
+<!-- ========== MODALS (Body Level) ========== -->
+<!-- Manual Adjustment Modal -->
+<div id="manual-adjust-modal" class="modal" style="display:none;" onclick="if(event.target.id==='manual-adjust-modal') KrushFlow.closeManualAdjust()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3 id="adjust-item-name">Manual Adjustment</h3>
+            <button class="close-btn" onclick="KrushFlow.closeManualAdjust()">×</button>
         </div>
-
-        <!-- Unmatched Review Modal -->
-        <div id="unmatched-modal" class="modal" style="display:none;" onclick="if(event.target.id==='unmatched-modal') KrushFlow.closeUnmatchedReview()">
-            <div class="modal-content" onclick="event.stopPropagation()">
-                <div class="modal-header">
-                    <h3>⚠️ Review Unmatched Items</h3>
-                    <button class="close-btn" onclick="KrushFlow.closeUnmatchedReview()">×</button>
-                </div>
-                <div class="modal-body">
-                    <p style="color: var(--text-muted); margin-bottom: 1rem;">These voice commands couldn't be matched to items in your master list. Review and resolve each one:</p>
-                    <ul id="unmatched-list" class="unmatched-list"></ul>
-                    <div class="modal-actions">
-                        <button class="btn btn-secondary" onclick="KrushFlow.closeUnmatchedReview()">Close</button>
-                        <button class="btn btn-primary" onclick="KrushFlow.clearAllUnmatched()">Clear All</button>
-                    </div>
-                </div>
+        <div class="modal-body">
+            <div class="count-adjustment">
+                <button class="btn-adjust" onclick="KrushFlow.adjustCount(-10)">-10</button>
+                <button class="btn-adjust" onclick="KrushFlow.adjustCount(-1)">-1</button>
+                <input type="number" id="manual-count-input" class="count-input" min="0" value="0">
+                <button class="btn-adjust" onclick="KrushFlow.adjustCount(1)">+1</button>
+                <button class="btn-adjust" onclick="KrushFlow.adjustCount(10)">+10</button>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="KrushFlow.closeManualAdjust()">Cancel</button>
+                <button class="btn btn-primary" onclick="KrushFlow.saveManualAdjust()">Save</button>
             </div>
         </div>
     </div>
+</div>
 
+<!-- Unmatched Review Modal -->
+<div id="unmatched-modal" class="modal" style="display:none;" onclick="if(event.target.id==='unmatched-modal') KrushFlow.closeUnmatchedReview()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h3>⚠️ Review Unmatched Items</h3>
+            <button class="close-btn" onclick="KrushFlow.closeUnmatchedReview()">×</button>
+        </div>
+        <div class="modal-body">
+            <p style="color: var(--text-muted); margin-bottom: 1rem;">These voice commands couldn't be matched to items in your master list. Review and resolve each one:</p>
+            <ul id="unmatched-list" class="unmatched-list"></ul>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="KrushFlow.closeUnmatchedReview()">Close</button>
+                <button class="btn btn-primary" onclick="KrushFlow.clearAllUnmatched()">Clear All</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
