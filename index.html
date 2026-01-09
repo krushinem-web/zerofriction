@@ -129,6 +129,10 @@
             box-shadow: 0 12px 30px rgba(249, 115, 22, 0.15);
         }
 
+        .glass-card:active {
+            transform: translateY(-2px);
+        }
+
         .icon-container { 
             width: 56px; 
             height: 56px; 
@@ -586,6 +590,11 @@
         .mic-button.recording {
             animation: pulse 1.5s infinite;
             background: var(--danger);
+            box-shadow: 0 6px 25px rgba(239, 68, 68, 0.4);
+        }
+
+        .mic-button:active {
+            transform: scale(0.95);
         }
 
         @keyframes pulse {
@@ -696,6 +705,37 @@
             display: flex;
             align-items: center;
             gap: 1.5rem;
+        }
+
+        .countdown-timer {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--brand);
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            min-width: 80px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .countdown-timer.warning {
+            color: var(--danger);
+            animation: pulse-warning 0.5s infinite;
+        }
+
+        @keyframes pulse-warning {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+
+        .countdown-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
         }
 
         .mic-button.large {
@@ -835,7 +875,7 @@
                 <span class="theme-icon">🌙</span>
             </button>
             <div class="logo-wrapper">
-                <img src="logo.png" alt="KrushFlow Logo">
+                <img src="logo.svg" alt="KrushFlow Logo">
             </div>
             <p class="tagline">Intelligent inventory management</p>
         </header>
@@ -849,18 +889,8 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
                         </svg>
                     </div>
-                    <h3>New Setup</h3>
+                    <h3>New Project</h3>
                     <p>Create inventory master list</p>
-                </div>
-
-                <div class="glass-card" onclick="KrushFlow.openDailyScan()">
-                    <div class="icon-container">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
-                        </svg>
-                    </div>
-                    <h3>Daily Scan</h3>
-                    <p>Scan against master list</p>
                 </div>
 
                 <div class="glass-card" onclick="KrushFlow.openVoiceMapping()">
@@ -879,18 +909,8 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                         </svg>
                     </div>
-                    <h3>Daily Count</h3>
-                    <p>Voice-powered counting</p>
-                </div>
-
-                <div class="glass-card" onclick="KrushFlow.loadTestData()" style="border: 2px dashed var(--brand);">
-                    <div class="icon-container">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                        </svg>
-                    </div>
-                    <h3>Quick Test</h3>
-                    <p>Load sample data & test export</p>
+                    <h3>Live Count</h3>
+                    <p>Real-time voice counting</p>
                 </div>
             </div>
         </main>
@@ -902,7 +922,7 @@
             <button class="back-btn" onclick="KrushFlow.goHome()">
                 <span>←</span> Back
             </button>
-            <h2>New Setup</h2>
+            <h2>New Project</h2>
             <div style="width: 80px;"></div>
         </div>
 
@@ -1046,17 +1066,21 @@
             <button class="back-btn" onclick="KrushFlow.goHome()">
                 <span>←</span> Back
             </button>
-            <h2>Daily Count</h2>
+            <h2>Live Count</h2>
             <div style="width: 80px;"></div>
         </div>
 
         <!-- Voice Control Center -->
         <div class="voice-control-center">
-            <button class="mic-button large" id="count-mic-btn" onclick="KrushFlow.startVoiceCounting()">
+            <button class="mic-button large" id="count-mic-btn" onclick="KrushFlow.toggleVoiceCounting()">
                 🎤
             </button>
+            <div class="countdown-timer" id="count-countdown">
+                <div class="countdown-label">CLIP</div>
+                <div id="countdown-value">--</div>
+            </div>
             <div class="voice-feedback" id="voice-feedback">
-                <div class="voice-status" id="count-voice-status">Tap mic to start counting</div>
+                <div class="voice-status" id="count-voice-status">Tap mic to start continuous counting</div>
                 <div class="voice-transcript" id="count-transcript"></div>
                 <div class="voice-parsed" id="count-parsed"></div>
             </div>
@@ -1068,7 +1092,7 @@
         </div>
 
         <ul class="item-list" id="count-item-list">
-            <li class="empty-state">Start from Daily Scan to load items</li>
+            <li class="empty-state">Load test data or complete workflow to begin counting</li>
         </ul>
 
         <div class="footer-actions" id="count-export-actions" style="display:none;">
@@ -1097,12 +1121,16 @@ const KrushFlow = {
     voiceMappingMasterList: [],
     voiceMappingAliases: {},
 
-    // Daily Count State
+    // Live Count State
     countingItems: [],  // Matched items from alignment
     countingCounts: {}, // { itemName: count }
     countingProject: null,
     isListening: false,
+    isContinuousMode: false,
     recognition: null,
+    clipTimer: null,
+    clipTimeRemaining: 15,
+    clipDuration: 15, // seconds per clip
 
     // ===== NAVIGATION =====
     showScreen: function(screenId) {
@@ -1112,6 +1140,10 @@ const KrushFlow = {
     },
 
     goHome: function() {
+        // Cleanup: Stop any active voice recording when navigating away
+        if (this.isContinuousMode) {
+            this.pauseContinuousCounting();
+        }
         this.showScreen('screen-landing');
     },
 
@@ -1667,7 +1699,7 @@ const KrushFlow = {
         doneEl.textContent = counted;
 
         if (this.countingItems.length === 0) {
-            list.innerHTML = '<li class="empty-state">Start from Daily Scan to load items</li>';
+            list.innerHTML = '<li class="empty-state">Load test data or complete workflow to begin counting</li>';
             document.getElementById('count-export-actions').style.display = 'none';
             return;
         }
@@ -1688,7 +1720,17 @@ const KrushFlow = {
         }).join('');
     },
 
-    startVoiceCounting: function() {
+    // Toggle between paused and continuous counting mode
+    toggleVoiceCounting: function() {
+        if (this.isContinuousMode) {
+            this.pauseContinuousCounting();
+        } else {
+            this.startContinuousCounting();
+        }
+    },
+
+    // Start continuous 15-second clip recording
+    startContinuousCounting: function() {
         // Check if browser supports Web Speech API
         if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
             alert('Voice recognition is not supported in your browser.');
@@ -1696,7 +1738,7 @@ const KrushFlow = {
         }
 
         if (this.countingItems.length === 0) {
-            alert('No items loaded. Please complete Daily Scan first.');
+            alert('No items loaded. Please complete Daily Scan first or load test data.');
             return;
         }
 
@@ -1705,39 +1747,131 @@ const KrushFlow = {
         if (!this.recognition) {
             this.recognition = new SpeechRecognition();
             this.recognition.lang = 'en-US';
-            this.recognition.continuous = false;
+            this.recognition.continuous = true; // Continuous mode
             this.recognition.interimResults = false;
             this.recognition.maxAlternatives = 1;
 
             this.recognition.onresult = (event) => {
-                const transcript = event.results[0][0].transcript;
-                this.processVoiceCommand(transcript);
+                const lastResult = event.results[event.results.length - 1];
+                if (lastResult.isFinal) {
+                    const transcript = lastResult[0].transcript;
+                    this.processVoiceCommand(transcript);
+                }
             };
 
             this.recognition.onerror = (event) => {
                 console.error('Speech recognition error:', event.error);
+                if (event.error === 'no-speech') {
+                    // Ignore no-speech errors in continuous mode
+                    return;
+                }
                 document.getElementById('count-voice-status').textContent = 'Error: ' + event.error;
-                this.stopListening();
             };
 
             this.recognition.onend = () => {
-                this.stopListening();
+                // Auto-restart if still in continuous mode
+                if (this.isContinuousMode) {
+                    this.startNewClip();
+                }
             };
         }
 
-        // Start listening
-        this.isListening = true;
+        // Enter continuous mode
+        this.isContinuousMode = true;
         document.getElementById('count-mic-btn').classList.add('recording');
-        document.getElementById('count-voice-status').textContent = 'Listening...';
-        document.getElementById('count-transcript').textContent = '';
-        document.getElementById('count-parsed').textContent = '';
+        document.getElementById('count-voice-status').textContent = 'Recording continuously...';
 
+        // Start first clip
+        this.startNewClip();
+    },
+
+    // Start a new 15-second clip
+    startNewClip: function() {
+        if (!this.isContinuousMode) return;
+
+        // Reset clip timer
+        this.clipTimeRemaining = this.clipDuration;
+        this.updateCountdownDisplay();
+
+        // Start recognition
         try {
             this.recognition.start();
         } catch (error) {
-            console.error('Failed to start recognition:', error);
-            this.stopListening();
+            if (error.name !== 'InvalidStateError') {
+                console.error('Failed to start recognition:', error);
+            }
         }
+
+        // Start countdown
+        this.clipTimer = setInterval(() => {
+            this.clipTimeRemaining--;
+            this.updateCountdownDisplay();
+
+            if (this.clipTimeRemaining <= 0) {
+                // Clip finished - stop and restart
+                this.endCurrentClip();
+            }
+        }, 1000);
+    },
+
+    // End current clip and start next one
+    endCurrentClip: function() {
+        if (this.clipTimer) {
+            clearInterval(this.clipTimer);
+            this.clipTimer = null;
+        }
+
+        // Stop current recognition
+        try {
+            this.recognition.stop();
+        } catch (error) {
+            console.error('Error stopping recognition:', error);
+        }
+
+        // Will auto-restart via onend handler if still in continuous mode
+    },
+
+    // Update countdown display
+    updateCountdownDisplay: function() {
+        const countdownEl = document.getElementById('countdown-value');
+        const timerEl = document.getElementById('count-countdown');
+
+        if (!countdownEl) return;
+
+        countdownEl.textContent = this.clipTimeRemaining;
+
+        // Warning state when < 3 seconds
+        if (this.clipTimeRemaining <= 3 && this.clipTimeRemaining > 0) {
+            timerEl.classList.add('warning');
+        } else {
+            timerEl.classList.remove('warning');
+        }
+    },
+
+    // Pause continuous counting
+    pauseContinuousCounting: function() {
+        this.isContinuousMode = false;
+
+        // Stop clip timer
+        if (this.clipTimer) {
+            clearInterval(this.clipTimer);
+            this.clipTimer = null;
+        }
+
+        // Stop recognition
+        try {
+            if (this.recognition) {
+                this.recognition.stop();
+            }
+        } catch (error) {
+            console.error('Error stopping recognition:', error);
+        }
+
+        // Update UI
+        document.getElementById('count-mic-btn').classList.remove('recording');
+        document.getElementById('count-voice-status').textContent = 'Paused - tap mic to resume';
+        document.getElementById('countdown-value').textContent = '--';
+        document.getElementById('count-countdown').classList.remove('warning');
     },
 
     stopListening: function() {
@@ -1865,6 +1999,7 @@ const KrushFlow = {
         if (!this.countingCounts.hasOwnProperty(item)) {
             console.error('[State Mutation] Item not found:', item);
             document.getElementById('count-parsed').textContent = '❌ Item not in list';
+            this.playAudioFeedback('error');
             return;
         }
 
@@ -1884,6 +2019,7 @@ const KrushFlow = {
                 break;
             default:
                 console.error('[State Mutation] Invalid operation:', operation);
+                this.playAudioFeedback('error');
                 return;
         }
 
@@ -1894,14 +2030,63 @@ const KrushFlow = {
 
         // Update UI
         this.renderCountingItems();
-        document.getElementById('count-voice-status').textContent = `Updated: ${item} = ${newCount}`;
+        document.getElementById('count-voice-status').textContent = `✓ ${item} = ${newCount}`;
 
-        // Brief success feedback
-        setTimeout(() => {
-            document.getElementById('count-voice-status').textContent = 'Tap mic to count';
-            document.getElementById('count-transcript').textContent = '';
-            document.getElementById('count-parsed').textContent = '';
-        }, 2000);
+        // Audible feedback (canonical requirement)
+        this.playAudioFeedback('success', newCount);
+
+        // Brief success feedback (don't clear in continuous mode)
+        if (!this.isContinuousMode) {
+            setTimeout(() => {
+                document.getElementById('count-voice-status').textContent = 'Tap mic to start continuous counting';
+                document.getElementById('count-transcript').textContent = '';
+                document.getElementById('count-parsed').textContent = '';
+            }, 2000);
+        } else {
+            setTimeout(() => {
+                document.getElementById('count-transcript').textContent = '';
+                document.getElementById('count-parsed').textContent = '';
+            }, 1500);
+        }
+    },
+
+    // Audible feedback for state mutations (canonical requirement)
+    playAudioFeedback: function(type, value) {
+        // Use Web Speech Synthesis for audible confirmation
+        if ('speechSynthesis' in window) {
+            const utterance = new SpeechSynthesisUtterance();
+            utterance.rate = 1.2; // Slightly faster
+            utterance.volume = 0.8;
+
+            if (type === 'success') {
+                utterance.text = value !== undefined ? `${value}` : 'Done';
+            } else if (type === 'error') {
+                utterance.text = 'Error';
+            }
+
+            window.speechSynthesis.speak(utterance);
+        } else {
+            // Fallback: Use beep sound via Web Audio API
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                oscillator.frequency.value = type === 'success' ? 800 : 400;
+                oscillator.type = 'sine';
+
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.1);
+            } catch (error) {
+                console.log('Audio feedback not available');
+            }
+        }
     },
 
     // Stage 8: Final Output - Export complete list including zero-count items
