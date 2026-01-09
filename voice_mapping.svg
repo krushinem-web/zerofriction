@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="gradBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3a3a40"/>
+      <stop offset="55%" stop-color="#1f1f23"/>
+      <stop offset="100%" stop-color="#141418"/>
+    </linearGradient>
+
+    <linearGradient id="gradAccent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffb300"/>
+      <stop offset="55%" stop-color="#ff7a18"/>
+      <stop offset="100%" stop-color="#ff3d00"/>
+    </linearGradient>
+
+    <linearGradient id="gradAccentSoft" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffb300" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#ff3d00" stop-opacity="0.95"/>
+    </linearGradient>
+
+    <radialGradient id="gradGlow" cx="30%" cy="25%" r="80%">
+      <stop offset="0%" stop-color="#ffb300" stop-opacity="1"/>
+      <stop offset="55%" stop-color="#ff7a18" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#ff3d00" stop-opacity="1"/>
+    </radialGradient>
+
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#000000" flood-opacity="0.55"/>
+    </filter>
+
+    <filter id="outerGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="0" stdDeviation="10" flood-color="#ff7a18" flood-opacity="0.55"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="18" flood-color="#ff3d00" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- tile -->
+  <g filter="url(#softShadow)">
+    <rect x="36" y="44" width="440" height="424" rx="56" ry="56" fill="url(#gradBg)" stroke="#ff7a18" stroke-width="6" filter="url(#outerGlow)"/>
+    <!-- top highlight -->
+    <path d="M60 96 C110 56 402 56 452 96 L452 120 C402 80 110 80 60 120 Z" fill="rgba(255,255,255,0.10)"/>
+    <!-- corner sheen -->
+    <path d="M380 52 L460 132 L460 200 L316 56 Z" fill="rgba(255,255,255,0.06)"/>
+  </g>
+
+  <!-- icon -->
+  
+        <g transform="translate(150 110)">
+          <rect x="120" y="45" width="20" height="160" rx="10" fill="url(#gradGlow)"/>
+          <rect x="70" y="0" width="120" height="170" rx="60" fill="url(#gradGlow)" stroke="rgba(0,0,0,0.25)" stroke-width="6"/>
+          <rect x="88" y="28" width="84" height="10" rx="5" fill="rgba(0,0,0,0.18)"/>
+          <rect x="88" y="58" width="84" height="10" rx="5" fill="rgba(0,0,0,0.18)"/>
+          <rect x="88" y="88" width="84" height="10" rx="5" fill="rgba(0,0,0,0.18)"/>
+          <rect x="88" y="118" width="84" height="10" rx="5" fill="rgba(0,0,0,0.18)"/>
+          <path d="M85 185 C85 225 175 225 175 185" fill="none" stroke="url(#gradGlow)" stroke-width="14" stroke-linecap="round"/>
+          <path d="M130 225 L130 260" stroke="url(#gradGlow)" stroke-width="14" stroke-linecap="round"/>
+          <path d="M100 260 L160 260" stroke="url(#gradGlow)" stroke-width="14" stroke-linecap="round"/>
+        </g>
+        <!-- waves -->
+        <g fill="none" stroke="url(#gradAccent)" stroke-width="14" stroke-linecap="round" opacity="0.95">
+          <path d="M132 210 C102 185 102 140 132 115"/>
+          <path d="M380 115 C410 140 410 185 380 210"/>
+          <path d="M95 240 C55 205 55 120 95 85" opacity="0.6"/>
+          <path d="M417 85 C457 120 457 205 417 240" opacity="0.6"/>
+        </g>
+        
+
+  <!-- title -->
+  <text x="256" y="410" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial" font-size="44" font-weight="800" fill="#ffffff">Voice Mapping</text>
+  <text x="256" y="450" text-anchor="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial" font-size="22" font-weight="500" fill="#cfcfd6" opacity="0.9">Record aliases for accuracy</text>
+</svg>
