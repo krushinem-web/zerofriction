@@ -742,20 +742,26 @@
 
         /* ========== VOICE CONTROL CENTER ========== */
         .voice-control-center {
-            background: var(--glass);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--bg-page);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             border: 1px solid var(--glass-border);
             border-radius: 1.5rem;
-            padding: 2rem;
+            padding: 1.5rem;
             margin-bottom: 1.5rem;
             display: flex;
             align-items: center;
             gap: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
         }
 
         .mic-button.large {
-            width: 80px;
-            height: 80px;
-            font-size: 2rem;
+            width: 70px;
+            height: 70px;
+            font-size: 1.75rem;
             flex-shrink: 0;
         }
 
