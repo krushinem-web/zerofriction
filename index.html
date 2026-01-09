@@ -2241,11 +2241,34 @@ const KrushFlow = {
             }
         }
 
-        // Local parsing failed - return error (no AI fallback per "no guessing" principle)
-        return {
-            success: false,
-            error: 'Could not match item or parse command'
-        };
+        // Local parsing failed - try server-side Claude API parsing
+        console.log('[Voice] Local parsing failed, calling Claude API...');
+
+        try {
+            const response = await fetch('/live-count/parse-command', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    transcript: transcript,
+                    masterList: this.countingItems,
+                    aliases: this.voiceMappingAliases || {}
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Server error');
+            }
+
+            const result = await response.json();
+            return result;
+
+        } catch (error) {
+            console.error('[Voice] Server parsing failed:', error);
+            return {
+                success: false,
+                error: 'Could not match item or parse command'
+            };
+        }
     },
 
     // Stage 7: State Mutation - Apply ADD/SUBTRACT/SET operations

@@ -770,6 +770,214 @@ app.get('/projects/:projectName/aliases', (req, res) => {
     }
 });
 
+// ============================================
+// LIVE COUNT ENDPOINTS (Browser-based voice recognition)
+// ============================================
+
+// Parse voice command using Claude API (client sends transcript, not audio)
+app.post('/live-count/parse-command', express.json(), async (req, res) => {
+    try {
+        const { transcript, masterList, aliases } = req.body;
+
+        if (!transcript) {
+            return res.status(400).json({ error: 'Transcript required' });
+        }
+
+        if (!masterList || !Array.isArray(masterList)) {
+            return res.status(400).json({ error: 'Master list required' });
+        }
+
+        console.log(`[Live Count Parse] Transcript: "${transcript}"`);
+        console.log(`[Live Count Parse] Master list: ${masterList.length} items`);
+        console.log(`[Live Count Parse] Aliases: ${Object.keys(aliases || {}).length} mappings`);
+
+        // Use Claude API to parse voice command
+        const aiResponse = await anthropic.messages.create({
+            model: "claude-3-5-sonnet-20241022",
+            max_tokens: 300,
+            messages: [{
+                role: "user",
+                content: `You are a voice command parser for inventory counting.
+
+TRANSCRIPT: "${transcript}"
+
+RULES:
+1. Extract: item name, operation (ADD/SUBTRACT/SET), and quantity (number)
+2. Operation MUST be one of: ADD, SUBTRACT, SET
+3. Quantity MUST be a positive number
+4. If the command is unclear or missing any part, return {"error": "description"}
+5. Be lenient with phrasing but strict about having all three parts
+
+EXAMPLES:
+- "add 5 shrimp" → {"item": "shrimp", "operation": "ADD", "quantity": 5}
+- "set chicken to 100" → {"item": "chicken", "operation": "SET", "quantity": 100}
+- "subtract 3 salmon" → {"item": "salmon", "operation": "SUBTRACT", "quantity": 3}
+
+Return ONLY valid JSON in this format:
+{"item": "string", "operation": "ADD|SUBTRACT|SET", "quantity": number}
+
+Or if error:
+{"error": "description of what's missing or unclear"}`
+            }]
+        });
+
+        const parsedText = aiResponse.content[0].text.trim();
+        console.log(`[Live Count Parse] Claude response: ${parsedText}`);
+
+        let parsed;
+        try {
+            parsed = JSON.parse(parsedText);
+        } catch (e) {
+            console.error('[Live Count Parse] Failed to parse Claude response as JSON');
+            return res.json({
+                success: false,
+                error: 'Could not parse voice command'
+            });
+        }
+
+        // If Claude returned an error
+        if (parsed.error) {
+            console.log(`[Live Count Parse] Claude error: ${parsed.error}`);
+            return res.json({
+                success: false,
+                error: parsed.error
+            });
+        }
+
+        // Validate parsed data
+        if (!parsed.item || !parsed.operation || parsed.quantity === undefined) {
+            return res.json({
+                success: false,
+                error: 'Invalid command format'
+            });
+        }
+
+        // Match item against master list and aliases
+        const itemLower = parsed.item.toLowerCase().trim();
+        let matchedItem = null;
+
+        // Check aliases first
+        if (aliases) {
+            for (const [masterItem, aliasList] of Object.entries(aliases)) {
+                if (aliasList.some(alias => alias.toLowerCase().trim() === itemLower)) {
+                    matchedItem = masterItem;
+                    console.log(`[Live Count Parse] ALIAS MATCH: "${parsed.item}" → "${masterItem}"`);
+                    break;
+                }
+            }
+        }
+
+        // Check master list if no alias match
+        if (!matchedItem) {
+            matchedItem = masterList.find(item =>
+                item.toLowerCase().trim() === itemLower
+            );
+            if (matchedItem) {
+                console.log(`[Live Count Parse] MASTER LIST MATCH: "${parsed.item}" → "${matchedItem}"`);
+            }
+        }
+
+        // If no match found
+        if (!matchedItem) {
+            console.log(`[Live Count Parse] NO MATCH for "${parsed.item}"`);
+            return res.json({
+                success: false,
+                error: 'Item not found in master list'
+            });
+        }
+
+        // Success!
+        console.log(`[Live Count Parse] SUCCESS: ${parsed.operation} ${parsed.quantity} ${matchedItem}`);
+        res.json({
+            success: true,
+            item: matchedItem,
+            operation: parsed.operation,
+            quantity: parsed.quantity
+        });
+
+    } catch (error) {
+        console.error('[Live Count Parse] Error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Autosave Live Count state (3-minute interval)
+app.post('/live-count/autosave', express.json(), async (req, res) => {
+    try {
+        const { projectName, masterList, counts, timestamp } = req.body;
+
+        if (!projectName || !validateProjectName(projectName)) {
+            return res.status(400).json({ error: 'Valid project name required' });
+        }
+
+        console.log(`[Live Count Autosave] Project: "${projectName}"`);
+
+        const projectDir = path.join(DATA_DIR, projectName.replace(/\s+/g, '_'));
+        if (!fs.existsSync(projectDir)) {
+            fs.mkdirSync(projectDir, { recursive: true });
+        }
+
+        // Save counts to autosave file
+        const autosavePath = path.join(projectDir, 'live_count_autosave.json');
+        const data = {
+            projectName,
+            masterList,
+            counts,
+            timestamp,
+            savedAt: new Date().toISOString()
+        };
+
+        fs.writeFileSync(autosavePath, JSON.stringify(data, null, 2));
+
+        console.log(`[Live Count Autosave] Saved at ${data.savedAt}`);
+        res.json({ success: true, savedAt: data.savedAt });
+
+    } catch (error) {
+        console.error('[Live Count Autosave] Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Manual save Live Count state
+app.post('/live-count/save', express.json(), async (req, res) => {
+    try {
+        const { projectName, masterList, counts, timestamp } = req.body;
+
+        if (!projectName || !validateProjectName(projectName)) {
+            return res.status(400).json({ error: 'Valid project name required' });
+        }
+
+        console.log(`[Live Count Manual Save] Project: "${projectName}"`);
+
+        const projectDir = path.join(DATA_DIR, projectName.replace(/\s+/g, '_'));
+        if (!fs.existsSync(projectDir)) {
+            fs.mkdirSync(projectDir, { recursive: true });
+        }
+
+        // Save to manual save file (separate from autosave)
+        const savePath = path.join(projectDir, 'live_count.json');
+        const data = {
+            projectName,
+            masterList,
+            counts,
+            timestamp,
+            savedAt: new Date().toISOString()
+        };
+
+        fs.writeFileSync(savePath, JSON.stringify(data, null, 2));
+
+        console.log(`[Live Count Manual Save] Saved at ${data.savedAt}`);
+        res.json({ success: true, savedAt: data.savedAt });
+
+    } catch (error) {
+        console.error('[Live Count Manual Save] Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
