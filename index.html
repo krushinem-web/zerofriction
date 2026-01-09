@@ -972,6 +972,210 @@
             color: var(--text-muted);
         }
 
+        /* ========== UNMATCHED ITEMS ========== */
+        .unmatched-alert {
+            background: rgba(249, 115, 22, 0.1);
+            border: 2px solid var(--brand);
+            border-radius: 1rem;
+            padding: 1rem 1.5rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .unmatched-alert span {
+            font-weight: 600;
+            color: var(--brand);
+        }
+
+        .count.warning {
+            color: var(--brand);
+            font-weight: 700;
+        }
+
+        /* ========== MODALS ========== */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 1rem;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border-radius: 1.5rem;
+            max-width: 500px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--glass-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 1.25rem;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 2rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+
+        .close-btn:hover {
+            color: var(--text-main);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+            justify-content: flex-end;
+        }
+
+        /* ========== COUNT ADJUSTMENT ========== */
+        .count-adjustment {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .btn-adjust {
+            background: var(--bg-page);
+            border: 2px solid var(--glass-border);
+            border-radius: 0.75rem;
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-main);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-adjust:hover {
+            background: var(--brand);
+            border-color: var(--brand);
+            color: white;
+        }
+
+        .count-input {
+            width: 100px;
+            padding: 0.75rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+            text-align: center;
+            border: 2px solid var(--brand);
+            border-radius: 0.75rem;
+            background: var(--bg-page);
+            color: var(--text-main);
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        }
+
+        .count-input:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
+        }
+
+        /* ========== CLICKABLE ITEMS ========== */
+        .item-row {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .item-row:hover {
+            background: rgba(249, 115, 22, 0.05);
+            transform: translateX(4px);
+        }
+
+        .item-row:active {
+            transform: translateX(2px) scale(0.98);
+        }
+
+        /* ========== UNMATCHED LIST ========== */
+        .unmatched-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .unmatched-list li {
+            background: var(--bg-page);
+            border: 1px solid var(--glass-border);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .unmatched-transcript {
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .unmatched-time {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .unmatched-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .btn-small {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--glass-border);
+            background: var(--bg-card);
+            color: var(--text-main);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-small:hover {
+            background: var(--brand);
+            border-color: var(--brand);
+            color: white;
+        }
+
         /* ========== THEME TOGGLE ========== */
         .theme-toggle {
             position: absolute;
@@ -1277,9 +1481,16 @@
             </div>
         </div>
 
+        <!-- Unmatched Items Alert -->
+        <div id="unmatched-alert" class="unmatched-alert" style="display:none;">
+            <span id="unmatched-count-text">⚠️ 0 unmatched items</span>
+            <button class="btn-small" onclick="KrushFlow.showUnmatchedReview()">Review Now</button>
+        </div>
+
         <div class="status-bar">
             <span>Items: <span class="count" id="count-items-total">0</span></span>
             <span>Counted: <span class="count" id="count-items-done">0</span></span>
+            <span id="unmatched-badge" style="display:none;">Unmatched: <span class="count warning" id="count-unmatched">0</span></span>
         </div>
 
         <ul class="item-list" id="count-item-list">
@@ -1295,6 +1506,47 @@
         <button class="bottom-home-btn" onclick="KrushFlow.goHome()">
             ← Back Home
         </button>
+
+        <!-- Manual Adjustment Modal -->
+        <div id="manual-adjust-modal" class="modal" style="display:none;" onclick="if(event.target.id==='manual-adjust-modal') KrushFlow.closeManualAdjust()">
+            <div class="modal-content" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                    <h3 id="adjust-item-name">Manual Adjustment</h3>
+                    <button class="close-btn" onclick="KrushFlow.closeManualAdjust()">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="count-adjustment">
+                        <button class="btn-adjust" onclick="KrushFlow.adjustCount(-10)">-10</button>
+                        <button class="btn-adjust" onclick="KrushFlow.adjustCount(-1)">-1</button>
+                        <input type="number" id="manual-count-input" class="count-input" min="0" value="0">
+                        <button class="btn-adjust" onclick="KrushFlow.adjustCount(1)">+1</button>
+                        <button class="btn-adjust" onclick="KrushFlow.adjustCount(10)">+10</button>
+                    </div>
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" onclick="KrushFlow.closeManualAdjust()">Cancel</button>
+                        <button class="btn btn-primary" onclick="KrushFlow.saveManualAdjust()">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Unmatched Review Modal -->
+        <div id="unmatched-modal" class="modal" style="display:none;" onclick="if(event.target.id==='unmatched-modal') KrushFlow.closeUnmatchedReview()">
+            <div class="modal-content" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                    <h3>⚠️ Review Unmatched Items</h3>
+                    <button class="close-btn" onclick="KrushFlow.closeUnmatchedReview()">×</button>
+                </div>
+                <div class="modal-body">
+                    <p style="color: var(--text-muted); margin-bottom: 1rem;">These voice commands couldn't be matched to items in your master list. Review and resolve each one:</p>
+                    <ul id="unmatched-list" class="unmatched-list"></ul>
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" onclick="KrushFlow.closeUnmatchedReview()">Close</button>
+                        <button class="btn btn-primary" onclick="KrushFlow.clearAllUnmatched()">Clear All</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
 </div>
@@ -1318,6 +1570,8 @@ const KrushFlow = {
     countingProject: null,
     isListening: false,
     recognition: null,
+    unmatchedQueue: [],  // { transcript, timestamp, suggested: null }
+    editingItem: null,   // Currently editing item for manual adjustment
     autosaveTimer: null,
     lastSaveTime: null,
     saveInProgress: false,
@@ -1405,6 +1659,10 @@ const KrushFlow = {
             this.countingItems.forEach(item => {
                 this.countingCounts[item] = 0;
             });
+
+            // Reset unmatched queue for new session
+            this.unmatchedQueue = [];
+            this.updateUnmatchedUI();
 
             document.getElementById('live-count-controls').style.display = 'flex';
             this.showScreen('screen-daily-count');
@@ -1514,6 +1772,10 @@ const KrushFlow = {
                 this.countingCounts[item] = 0;
             });
 
+            // Reset unmatched queue for new session
+            this.unmatchedQueue = [];
+            this.updateUnmatchedUI();
+
             // Show voice controls
             document.getElementById('live-count-controls').style.display = 'flex';
 
@@ -1576,6 +1838,10 @@ const KrushFlow = {
             'SCALLOPS (FR)': ['scallops'],
             'LOBSTER TAIL': ['lobster']
         };
+
+        // Reset unmatched queue for new session
+        this.unmatchedQueue = [];
+        this.updateUnmatchedUI();
 
         // Show voice controls
         document.getElementById('live-count-controls').style.display = 'flex';
@@ -1994,6 +2260,10 @@ const KrushFlow = {
             this.countingCounts[item] = 0;
         });
 
+        // Reset unmatched queue for new session
+        this.unmatchedQueue = [];
+        this.updateUnmatchedUI();
+
         // Transition to Daily Count screen
         this.showScreen('screen-daily-count');
         this.renderCountingItems();
@@ -2026,11 +2296,11 @@ const KrushFlow = {
         // Show export button
         document.getElementById('count-export-actions').style.display = 'block';
 
-        // Render items with counts
+        // Render items with counts (clickable for manual adjustment)
         list.innerHTML = this.countingItems.map((item, idx) => {
             const count = this.countingCounts[item] || 0;
             return `
-                <li class="item-row">
+                <li class="item-row" onclick="KrushFlow.openManualAdjust('${this.escapeHtml(item).replace(/'/g, "&apos;")}')">
                     <span class="item-number">${idx + 1}</span>
                     <span class="item-name">${this.escapeHtml(item)}</span>
                     <span class="count-badge ${count === 0 ? 'zero' : ''}">${count}</span>
@@ -2149,8 +2419,18 @@ const KrushFlow = {
             const parsed = await this.parseVoiceCommand(transcript);
 
             if (!parsed.success) {
-                document.getElementById('count-parsed').textContent = '❌ ' + (parsed.error || 'Could not understand command');
-                document.getElementById('count-voice-status').textContent = 'Try again';
+                // Queue unmatched item - NEVER stop counting
+                console.log('[Voice Command] Queueing unmatched:', transcript);
+                this.unmatchedQueue.push({
+                    transcript: transcript,
+                    timestamp: new Date().toISOString(),
+                    error: parsed.error
+                });
+
+                document.getElementById('count-parsed').textContent = '⚠️ Queued for review';
+                document.getElementById('count-voice-status').textContent = 'Continue counting...';
+                this.updateUnmatchedUI();
+                this.playAudioFeedback('warning');
                 return;
             }
 
@@ -2163,8 +2443,15 @@ const KrushFlow = {
 
         } catch (error) {
             console.error('[Voice Command] Error:', error);
-            document.getElementById('count-parsed').textContent = '❌ Processing failed';
-            document.getElementById('count-voice-status').textContent = 'Try again';
+            // Queue as unmatched - continue counting
+            this.unmatchedQueue.push({
+                transcript: transcript,
+                timestamp: new Date().toISOString(),
+                error: 'Processing failed'
+            });
+            document.getElementById('count-parsed').textContent = '⚠️ Queued for review';
+            document.getElementById('count-voice-status').textContent = 'Continue counting...';
+            this.updateUnmatchedUI();
         }
     },
 
@@ -2334,6 +2621,8 @@ const KrushFlow = {
                 utterance.text = value !== undefined ? `${value}` : 'Done';
             } else if (type === 'error') {
                 utterance.text = 'Error';
+            } else if (type === 'warning') {
+                utterance.text = 'Queued';
             }
 
             window.speechSynthesis.speak(utterance);
@@ -2347,7 +2636,13 @@ const KrushFlow = {
                 oscillator.connect(gainNode);
                 gainNode.connect(audioContext.destination);
 
-                oscillator.frequency.value = type === 'success' ? 800 : 400;
+                if (type === 'success') {
+                    oscillator.frequency.value = 800;
+                } else if (type === 'warning') {
+                    oscillator.frequency.value = 600;
+                } else {
+                    oscillator.frequency.value = 400;
+                }
                 oscillator.type = 'sine';
 
                 gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
@@ -2361,11 +2656,132 @@ const KrushFlow = {
         }
     },
 
+    // Update unmatched items UI
+    updateUnmatchedUI: function() {
+        const count = this.unmatchedQueue.length;
+        const alert = document.getElementById('unmatched-alert');
+        const badge = document.getElementById('unmatched-badge');
+        const countEl = document.getElementById('count-unmatched');
+        const textEl = document.getElementById('unmatched-count-text');
+
+        if (count > 0) {
+            alert.style.display = 'flex';
+            badge.style.display = 'inline';
+            countEl.textContent = count;
+            textEl.textContent = `⚠️ ${count} unmatched item${count > 1 ? 's' : ''}`;
+        } else {
+            alert.style.display = 'none';
+            badge.style.display = 'none';
+        }
+    },
+
+    // Manual Adjustment - Open modal
+    openManualAdjust: function(itemName) {
+        this.editingItem = itemName;
+        const currentCount = this.countingCounts[itemName] || 0;
+
+        document.getElementById('adjust-item-name').textContent = itemName;
+        document.getElementById('manual-count-input').value = currentCount;
+        document.getElementById('manual-adjust-modal').style.display = 'flex';
+    },
+
+    // Manual Adjustment - Close modal
+    closeManualAdjust: function() {
+        this.editingItem = null;
+        document.getElementById('manual-adjust-modal').style.display = 'none';
+    },
+
+    // Manual Adjustment - Adjust count by delta
+    adjustCount: function(delta) {
+        const input = document.getElementById('manual-count-input');
+        const currentValue = parseInt(input.value) || 0;
+        const newValue = Math.max(0, currentValue + delta);
+        input.value = newValue;
+    },
+
+    // Manual Adjustment - Save changes
+    saveManualAdjust: function() {
+        if (!this.editingItem) return;
+
+        const input = document.getElementById('manual-count-input');
+        const newCount = parseInt(input.value) || 0;
+
+        this.countingCounts[this.editingItem] = newCount;
+        console.log(`[Manual Adjust] ${this.editingItem} set to ${newCount}`);
+
+        this.renderCountingItems();
+        this.closeManualAdjust();
+        this.playAudioFeedback('success', newCount);
+    },
+
+    // Unmatched Review - Show modal
+    showUnmatchedReview: function() {
+        const list = document.getElementById('unmatched-list');
+
+        if (this.unmatchedQueue.length === 0) {
+            list.innerHTML = '<li style="text-align: center; color: var(--text-muted);">No unmatched items</li>';
+        } else {
+            list.innerHTML = this.unmatchedQueue.map((item, idx) => {
+                const time = new Date(item.timestamp).toLocaleTimeString();
+                return `
+                    <li>
+                        <div class="unmatched-transcript">"${this.escapeHtml(item.transcript)}"</div>
+                        <div class="unmatched-time">${time} - ${item.error || 'Could not match'}</div>
+                        <div class="unmatched-actions">
+                            <button class="btn-small" onclick="KrushFlow.removeUnmatched(${idx})">Remove</button>
+                        </div>
+                    </li>
+                `;
+            }).join('');
+        }
+
+        document.getElementById('unmatched-modal').style.display = 'flex';
+    },
+
+    // Unmatched Review - Close modal
+    closeUnmatchedReview: function() {
+        document.getElementById('unmatched-modal').style.display = 'none';
+    },
+
+    // Unmatched Review - Remove single item
+    removeUnmatched: function(index) {
+        this.unmatchedQueue.splice(index, 1);
+        this.updateUnmatchedUI();
+        this.showUnmatchedReview(); // Refresh list
+    },
+
+    // Unmatched Review - Clear all unmatched items
+    clearAllUnmatched: function() {
+        if (this.unmatchedQueue.length === 0) return;
+
+        if (confirm(`Clear all ${this.unmatchedQueue.length} unmatched items?`)) {
+            this.unmatchedQueue = [];
+            this.updateUnmatchedUI();
+            this.closeUnmatchedReview();
+        }
+    },
+
     // Stage 8: Final Output - Export complete list including zero-count items
     exportFinalCount: function() {
         if (this.countingItems.length === 0) {
             alert('No items to export');
             return;
+        }
+
+        // FINAL WARNING: Check for unmatched items
+        if (this.unmatchedQueue.length > 0) {
+            const proceed = confirm(
+                `⚠️ WARNING: You have ${this.unmatchedQueue.length} unmatched voice command(s) that haven't been resolved.\n\n` +
+                `These items will NOT be included in your export.\n\n` +
+                `Do you want to:\n` +
+                `• Click "Cancel" to review unmatched items first\n` +
+                `• Click "OK" to export anyway (unmatched items will be ignored)`
+            );
+
+            if (!proceed) {
+                this.showUnmatchedReview();
+                return;
+            }
         }
 
         // Build complete ordered list with all items (including zeros)
