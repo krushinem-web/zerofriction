@@ -190,6 +190,16 @@
             background: rgba(249, 115, 22, 0.05);
         }
 
+        .back-btn:active {
+            transform: scale(0.97);
+        }
+
+        /* Emphasize Back button in Live Count (canonical requirement #8) */
+        #screen-daily-count .back-btn {
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
         /* ========== UPLOAD ZONE ========== */
         .upload-zone {
             background: var(--glass);
@@ -875,7 +885,7 @@
                 <span class="theme-icon">🌙</span>
             </button>
             <div class="logo-wrapper">
-                <img src="logo.svg" alt="KrushFlow Logo">
+                <img src="logo.png" alt="KrushFlow Logo">
             </div>
             <p class="tagline">Intelligent inventory management</p>
         </header>
@@ -1063,11 +1073,20 @@
     <!-- ========== SCREEN: DAILY COUNT (Phase 3) ========== -->
     <div id="screen-daily-count" class="screen">
         <div class="phase-header">
-            <button class="back-btn" onclick="KrushFlow.goHome()">
+            <button class="back-btn" onclick="KrushFlow.saveLiveCountAndExit()">
                 <span>←</span> Back
             </button>
-            <h2>Live Count</h2>
-            <div style="width: 80px;"></div>
+            <div style="flex: 1; text-align: center;">
+                <h2>Live Count</h2>
+                <div id="live-count-project-name" style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;"></div>
+            </div>
+            <button class="back-btn" onclick="KrushFlow.manualSaveLiveCount()" id="manual-save-btn" style="background: var(--success); border-color: var(--success); color: white;">
+                Save
+            </button>
+        </div>
+
+        <div class="status-bar" style="margin-bottom: 1rem;">
+            <span id="save-status" style="font-size: 0.85rem; color: var(--text-muted);">Not saved yet</span>
         </div>
 
         <!-- Voice Control Center -->
@@ -1131,6 +1150,9 @@ const KrushFlow = {
     clipTimer: null,
     clipTimeRemaining: 15,
     clipDuration: 15, // seconds per clip
+    autosaveTimer: null,
+    lastSaveTime: null,
+    saveInProgress: false,
 
     // ===== NAVIGATION =====
     showScreen: function(screenId) {
@@ -1197,6 +1219,7 @@ const KrushFlow = {
         if (this.countingItems.length > 0) {
             this.showScreen('screen-daily-count');
             this.renderCountingItems();
+            this.startAutosave(); // Start 3-minute autosave
             return;
         }
 
@@ -1213,6 +1236,7 @@ const KrushFlow = {
 
             this.showScreen('screen-daily-count');
             this.renderCountingItems();
+            this.startAutosave(); // Start 3-minute autosave
             return;
         }
 
@@ -1271,10 +1295,11 @@ const KrushFlow = {
         // Go to Daily Count screen
         this.showScreen('screen-daily-count');
         this.renderCountingItems();
+        this.startAutosave(); // Start 3-minute autosave
 
         // Show instruction
         setTimeout(() => {
-            alert('Test data loaded!\n\nTry voice commands:\n• "add 5 shrimp"\n• "set chicken to 100"\n• "subtract 3 salmon"\n\nThen click "Export Final Count" to download CSV with ALL items (including zeros)');
+            alert('Test data loaded!\n\nTry voice commands:\n• "add 5 shrimp"\n• "set chicken to 100"\n• "subtract 3 salmon"\n\nCounts auto-save every 3 minutes. Click "Export Final Count" to download CSV.');
         }, 300);
     },
 
@@ -1691,6 +1716,12 @@ const KrushFlow = {
         const list = document.getElementById('count-item-list');
         const totalEl = document.getElementById('count-items-total');
         const doneEl = document.getElementById('count-items-done');
+        const projectNameEl = document.getElementById('live-count-project-name');
+
+        // Display project name
+        if (projectNameEl && this.countingProject) {
+            projectNameEl.textContent = `📋 ${this.countingProject}`;
+        }
 
         totalEl.textContent = this.countingItems.length;
 
@@ -2125,6 +2156,169 @@ const KrushFlow = {
         alert(`Exported ${exportData.length} items (including zero-count items)`);
     },
 
+    // ===== AUTOSAVE FUNCTIONS =====
+
+    // Start 3-minute autosave timer (canonical requirement)
+    startAutosave: function() {
+        // Clear any existing timer
+        this.stopAutosave();
+
+        // Start new timer - autosave every 3 minutes (180000ms)
+        this.autosaveTimer = setInterval(() => {
+            this.performAutosave();
+        }, 180000);
+
+        console.log('[Autosave] Started - will save every 3 minutes');
+        this.updateSaveStatus('Autosave active');
+    },
+
+    // Stop autosave timer
+    stopAutosave: function() {
+        if (this.autosaveTimer) {
+            clearInterval(this.autosaveTimer);
+            this.autosaveTimer = null;
+            console.log('[Autosave] Stopped');
+        }
+    },
+
+    // Perform autosave (silent, server-side)
+    performAutosave: async function() {
+        if (this.saveInProgress) {
+            console.log('[Autosave] Save already in progress, skipping');
+            return;
+        }
+
+        if (this.countingItems.length === 0) {
+            console.log('[Autosave] No data to save');
+            return;
+        }
+
+        this.saveInProgress = true;
+        this.updateSaveStatus('Saving...');
+
+        try {
+            const saveData = {
+                projectName: this.countingProject,
+                masterList: this.countingItems,
+                counts: this.countingCounts,
+                timestamp: new Date().toISOString()
+            };
+
+            const response = await fetch('/live-count/autosave', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(saveData)
+            });
+
+            if (response.ok) {
+                this.lastSaveTime = new Date();
+                console.log('[Autosave] Success at', this.lastSaveTime.toLocaleTimeString());
+                this.updateSaveStatus('Auto-saved at ' + this.lastSaveTime.toLocaleTimeString());
+            } else {
+                throw new Error('Autosave failed');
+            }
+        } catch (error) {
+            console.error('[Autosave] Error:', error);
+            this.updateSaveStatus('Autosave failed - will retry');
+        } finally {
+            this.saveInProgress = false;
+        }
+    },
+
+    // Manual save (user-triggered)
+    manualSaveLiveCount: async function() {
+        if (this.saveInProgress) {
+            return;
+        }
+
+        if (this.countingItems.length === 0) {
+            alert('No data to save');
+            return;
+        }
+
+        this.saveInProgress = true;
+        this.updateSaveStatus('Saving...');
+
+        // Visual feedback on save button
+        const saveBtn = document.getElementById('manual-save-btn');
+        if (saveBtn) {
+            saveBtn.textContent = '💾 Saving...';
+            saveBtn.disabled = true;
+        }
+
+        try {
+            const saveData = {
+                projectName: this.countingProject,
+                masterList: this.countingItems,
+                counts: this.countingCounts,
+                timestamp: new Date().toISOString(),
+                manual: true
+            };
+
+            const response = await fetch('/live-count/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(saveData)
+            });
+
+            if (response.ok) {
+                this.lastSaveTime = new Date();
+                console.log('[Manual Save] Success at', this.lastSaveTime.toLocaleTimeString());
+                this.updateSaveStatus('✓ Saved at ' + this.lastSaveTime.toLocaleTimeString());
+
+                // Brief success feedback
+                if (saveBtn) {
+                    saveBtn.textContent = '✓ Saved';
+                    setTimeout(() => {
+                        saveBtn.textContent = 'Save';
+                        saveBtn.disabled = false;
+                    }, 2000);
+                }
+            } else {
+                throw new Error('Save failed');
+            }
+        } catch (error) {
+            console.error('[Manual Save] Error:', error);
+            this.updateSaveStatus('❌ Save failed');
+            alert('Failed to save. Please try again.');
+
+            if (saveBtn) {
+                saveBtn.textContent = 'Save';
+                saveBtn.disabled = false;
+            }
+        } finally {
+            this.saveInProgress = false;
+        }
+    },
+
+    // Save and exit Live Count
+    saveLiveCountAndExit: async function() {
+        // Stop continuous recording if active
+        if (this.isContinuousMode) {
+            this.pauseContinuousCounting();
+        }
+
+        // Stop autosave
+        this.stopAutosave();
+
+        // Perform final save before exit
+        if (this.countingItems.length > 0) {
+            this.updateSaveStatus('Saving before exit...');
+            await this.performAutosave();
+        }
+
+        // Go home
+        this.goHome();
+    },
+
+    // Update save status display
+    updateSaveStatus: function(message) {
+        const statusEl = document.getElementById('save-status');
+        if (statusEl) {
+            statusEl.textContent = message;
+        }
+    },
+
     // ===== VOICE MAPPING FUNCTIONS =====
     loadVoiceMappingProject: async function(projectName) {
         if (!projectName) {
@@ -2354,6 +2548,25 @@ const KrushFlow = {
         const savedTheme = localStorage.getItem('theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
         this.updateThemeIcon(savedTheme);
+
+        // Save on page unload/refresh (canonical requirement #7)
+        window.addEventListener('beforeunload', (e) => {
+            if (this.countingItems.length > 0 && this.autosaveTimer) {
+                // Attempt to save before leaving
+                this.performAutosave();
+                // Show warning
+                e.preventDefault();
+                e.returnValue = 'Live Count data will be saved. Continue?';
+            }
+        });
+
+        // Save when app loses focus/is backgrounded
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && this.countingItems.length > 0) {
+                console.log('[Visibility] App backgrounded - triggering save');
+                this.performAutosave();
+            }
+        });
 
         // File input handler - New Setup
         document.getElementById('file-input').addEventListener('change', (e) => {
