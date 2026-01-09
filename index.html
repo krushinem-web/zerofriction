@@ -2344,9 +2344,18 @@ const KrushFlow = {
                 const lastResult = event.results[event.results.length - 1];
                 if (lastResult.isFinal) {
                     const transcript = lastResult[0].transcript;
-                    // Process async without blocking - voice recognition continues
-                    this.processVoiceCommand(transcript).catch(err => {
-                        console.error('[Voice] Processing error:', err);
+                    console.log('[Voice] Raw transcript:', transcript);
+
+                    // Split multi-command transcripts (e.g., "add 5 shrimp add 3 chicken")
+                    const commands = this.splitMultiCommand(transcript);
+
+                    // Process each command async without blocking
+                    commands.forEach((cmd, idx) => {
+                        setTimeout(() => {
+                            this.processVoiceCommand(cmd).catch(err => {
+                                console.error('[Voice] Processing error:', err);
+                            });
+                        }, idx * 100); // Slight stagger for UI feedback
                     });
                 }
             };
@@ -2408,6 +2417,44 @@ const KrushFlow = {
         document.getElementById('count-mic-btn').classList.remove('recording');
         document.getElementById('count-voice-status').textContent = 'Tap mic to start recording';
         console.log('[Voice] Recording stopped');
+    },
+
+    // Split multi-command transcripts into individual commands
+    splitMultiCommand: function(transcript) {
+        // Pattern to match command keywords at word boundaries
+        const commandKeywords = /\b(add|plus|subtract|minus|set|make)\b/gi;
+
+        const matches = [];
+        let lastIndex = 0;
+        let match;
+
+        // Find all command keyword positions
+        const positions = [];
+        while ((match = commandKeywords.exec(transcript)) !== null) {
+            positions.push({
+                index: match.index,
+                keyword: match[0]
+            });
+        }
+
+        // If no keywords found or only one, return original
+        if (positions.length <= 1) {
+            return [transcript.trim()];
+        }
+
+        // Split at each keyword position
+        const commands = [];
+        for (let i = 0; i < positions.length; i++) {
+            const start = positions[i].index;
+            const end = i < positions.length - 1 ? positions[i + 1].index : transcript.length;
+            const command = transcript.substring(start, end).trim();
+            if (command) {
+                commands.push(command);
+            }
+        }
+
+        console.log('[Voice] Split into', commands.length, 'commands:', commands);
+        return commands;
     },
 
     // Stage 6: Voice Parsing - Extract item, operation, quantity
