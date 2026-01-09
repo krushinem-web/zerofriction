@@ -791,29 +791,48 @@ app.post('/live-count/parse-command', express.json(), async (req, res) => {
         console.log(`[Live Count Parse] Master list: ${masterList.length} items`);
         console.log(`[Live Count Parse] Aliases: ${Object.keys(aliases || {}).length} mappings`);
 
+        // Build context of available items and aliases for Claude
+        const availableItems = [...masterList];
+        const aliasContext = [];
+        if (aliases) {
+            for (const [masterItem, aliasList] of Object.entries(aliases)) {
+                if (aliasList && aliasList.length > 0) {
+                    aliasContext.push(`${masterItem}: ${aliasList.join(', ')}`);
+                }
+            }
+        }
+
         // Use Claude API to parse voice command
         const aiResponse = await anthropic.messages.create({
             model: "claude-3-5-sonnet-20241022",
-            max_tokens: 300,
+            max_tokens: 400,
             messages: [{
                 role: "user",
                 content: `You are a voice command parser for inventory counting.
 
 TRANSCRIPT: "${transcript}"
 
+MASTER LIST ITEMS:
+${availableItems.slice(0, 50).join(', ')}${availableItems.length > 50 ? ` ... (${availableItems.length} total items)` : ''}
+
+${aliasContext.length > 0 ? `VOICE ALIASES:\n${aliasContext.slice(0, 20).join('\n')}${aliasContext.length > 20 ? `\n... (${aliasContext.length} total aliases)` : ''}` : ''}
+
+TASK:
+Extract item name, operation, and quantity from the transcript.
+
 RULES:
-1. Extract: item name, operation (ADD/SUBTRACT/SET), and quantity (number)
-2. Operation MUST be one of: ADD, SUBTRACT, SET
-3. Quantity MUST be a positive number
-4. If the command is unclear or missing any part, return {"error": "description"}
-5. Be lenient with phrasing but strict about having all three parts
+1. Operation MUST be one of: ADD, SUBTRACT, SET
+2. Quantity MUST be a positive number
+3. Item name should match or be close to an item in the master list or aliases
+4. Be lenient with pronunciation variations (e.g., "shrimps" → "shrimp")
+5. If the command is unclear or missing any part, return error
 
 EXAMPLES:
 - "add 5 shrimp" → {"item": "shrimp", "operation": "ADD", "quantity": 5}
 - "set chicken to 100" → {"item": "chicken", "operation": "SET", "quantity": 100}
 - "subtract 3 salmon" → {"item": "salmon", "operation": "SUBTRACT", "quantity": 3}
 
-Return ONLY valid JSON in this format:
+Return ONLY valid JSON in this exact format:
 {"item": "string", "operation": "ADD|SUBTRACT|SET", "quantity": number}
 
 Or if error:

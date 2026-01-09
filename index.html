@@ -2430,7 +2430,7 @@ const KrushFlow = {
                 document.getElementById('count-parsed').textContent = '⚠️ Queued for review';
                 document.getElementById('count-voice-status').textContent = 'Continue counting...';
                 this.updateUnmatchedUI();
-                this.playAudioFeedback('warning');
+                // No audio feedback - don't interrupt counting flow
                 return;
             }
 
