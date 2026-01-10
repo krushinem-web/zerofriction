@@ -3552,9 +3552,12 @@ const KrushFlow = {
                 console.log('[Voice Mapping] Sending audio to OpenAI:', audioBlob.size, 'bytes');
 
                 try {
-                    // Send to server for transcription
+                    // Send to server for transcription with protocol comparison data
                     const formData = new FormData();
                     formData.append('audio', audioBlob, 'audio.webm');
+                    formData.append('masterListCandidates', JSON.stringify(this.voiceMappingMasterList || []));
+                    formData.append('aliasDictionary', JSON.stringify(this.voiceMappingAliases || {}));
+                    formData.append('targetItem', masterItem);
 
                     const response = await fetch('/audio/transcribe-mapping', {
                         method: 'POST',
@@ -3570,8 +3573,66 @@ const KrushFlow = {
                     if (result.success && result.transcript) {
                         const transcript = result.transcript.trim().toLowerCase();
                         inputEl.value = transcript;
-                        statusEl.textContent = `Heard: "${transcript}"`;
+
+                        // Display side-by-side protocol comparison if available
+                        if (result.protocolComparison) {
+                            const current = result.protocolComparison.return_current_installed;
+                            const newProto = result.protocolComparison.return_new_googleStt_plus_chatgpt_ambiguity;
+                            const flags = result.protocolComparison.comparisonFlags;
+
+                            let statusHTML = `<div style="font-size: 0.9em;">`;
+                            statusHTML += `<div><strong>Heard:</strong> "${transcript}"</div>`;
+
+                            // Show both protocol results side-by-side
+                            statusHTML += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem;">`;
+
+                            // Current Protocol (Left)
+                            statusHTML += `<div style="border-left: 3px solid #3b82f6; padding-left: 0.5rem;">`;
+                            statusHTML += `<div style="font-weight: bold; color: #3b82f6;">Current</div>`;
+                            statusHTML += `<div>Item: ${current.resolution.canonicalItem}</div>`;
+                            statusHTML += `<div>Op: ${current.resolution.operation || 'null'}</div>`;
+                            statusHTML += `<div>Val: ${current.resolution.value !== null ? current.resolution.value : 'null'}</div>`;
+                            statusHTML += `<div>Conf: ${(current.resolution.confidence * 100).toFixed(0)}%</div>`;
+                            if (current.resolution.needsConfirmation) {
+                                statusHTML += `<div style="color: #f59e0b;">⚠️ Needs confirm</div>`;
+                            }
+                            statusHTML += `</div>`;
+
+                            // New Protocol (Right)
+                            statusHTML += `<div style="border-left: 3px solid #10b981; padding-left: 0.5rem;">`;
+                            statusHTML += `<div style="font-weight: bold; color: #10b981;">New (Google STT)</div>`;
+                            statusHTML += `<div>Item: ${newProto.resolution.canonicalItem}</div>`;
+                            statusHTML += `<div>Op: ${newProto.resolution.operation || 'null'}</div>`;
+                            statusHTML += `<div>Val: ${newProto.resolution.value !== null ? newProto.resolution.value : 'null'}</div>`;
+                            statusHTML += `<div>Conf: ${(newProto.resolution.confidence * 100).toFixed(0)}%</div>`;
+                            if (newProto.resolution.needsConfirmation) {
+                                statusHTML += `<div style="color: #f59e0b;">⚠️ Needs confirm</div>`;
+                            }
+                            statusHTML += `</div>`;
+
+                            statusHTML += `</div>`; // End grid
+
+                            // Show differences
+                            if (flags.differentCanonicalItem || flags.differentOperation || flags.differentValue) {
+                                statusHTML += `<div style="margin-top: 0.5rem; padding: 0.25rem; background: #fee2e2; border-radius: 4px;">`;
+                                statusHTML += `<strong>⚠️ Protocols differ:</strong> `;
+                                const diffs = [];
+                                if (flags.differentCanonicalItem) diffs.push('Item');
+                                if (flags.differentOperation) diffs.push('Operation');
+                                if (flags.differentValue) diffs.push('Value');
+                                statusHTML += diffs.join(', ');
+                                statusHTML += `</div>`;
+                            }
+
+                            statusHTML += `</div>`;
+                            statusEl.innerHTML = statusHTML;
+                        } else {
+                            // Fallback if no comparison available
+                            statusEl.textContent = `Heard: "${transcript}"`;
+                        }
+
                         console.log('[Voice Mapping] Transcript:', transcript);
+                        console.log('[Voice Mapping] Protocol Comparison:', result.protocolComparison);
                     } else {
                         statusEl.textContent = 'No speech detected';
                     }
