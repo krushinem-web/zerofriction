@@ -1005,22 +1005,32 @@ app.post('/live-count/save', express.json(), async (req, res) => {
 
 // Audio transcription for Live Count (streaming enabled)
 app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res) => {
+    console.log('🎤 HIT /audio/transcribe-live-count', new Date().toISOString());
+
     try {
         if (!req.file) {
+            console.log('❌ No audio file in request');
             return res.status(400).json({ error: 'No audio file provided' });
         }
 
-        console.log('[Audio Transcribe Live Count] Received audio:', req.file.size, 'bytes');
+        console.log('📊 Audio details:', {
+            size: req.file.size + ' bytes',
+            mimetype: req.file.mimetype,
+            originalname: req.file.originalname,
+            fieldname: req.file.fieldname
+        });
 
         // Validate minimum audio size (reject tiny/empty files that cause ECONNRESET)
         const MIN_AUDIO_SIZE = 2000; // 2KB minimum (about 0.1 seconds of audio)
         if (req.file.size < MIN_AUDIO_SIZE) {
-            console.log('[Audio Transcribe Live Count] Audio too small, rejected:', req.file.size, 'bytes');
+            console.log('⚠️  Audio too small, rejected:', req.file.size, 'bytes (minimum:', MIN_AUDIO_SIZE, 'bytes)');
             return res.json({
                 success: false,
                 error: 'Audio file too short - please speak for at least 1 second'
             });
         }
+
+        console.log('✅ Audio size valid, proceeding to OpenAI transcription...');
 
         // Create a File object from buffer for OpenAI SDK
         const audioFile = new File([req.file.buffer], req.file.originalname || 'audio.webm', {
@@ -1028,6 +1038,9 @@ app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res
         });
 
         // Call OpenAI Audio Transcription API
+        console.log('🔄 Calling OpenAI API:', 'https://api.openai.com/v1/audio/transcriptions');
+        console.log('📝 Model: gpt-4o-mini-transcribe');
+
         const transcription = await openai.audio.transcriptions.create({
             file: audioFile,
             model: 'gpt-4o-mini-transcribe',
@@ -1035,7 +1048,8 @@ app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res
             // Streaming enabled for real-time feedback (handled by OpenAI SDK)
         });
 
-        console.log('[Audio Transcribe Live Count] Transcript:', transcription);
+        console.log('✅ OpenAI Response received');
+        console.log('📄 Transcript:', transcription);
 
         res.json({
             success: true,
@@ -1043,7 +1057,12 @@ app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res
         });
 
     } catch (error) {
-        console.error('[Audio Transcribe Live Count] Error:', error);
+        console.error('❌ OpenAI API Error Details:');
+        console.error('  Error type:', error.constructor.name);
+        console.error('  Error message:', error.message);
+        console.error('  Error code:', error.code);
+        console.error('  Error cause:', error.cause);
+        console.error('  Full error:', error);
 
         // Fallback to higher accuracy model if mini fails
         if (error.message && error.message.includes('transcribe')) {
@@ -1086,22 +1105,32 @@ app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res
 
 // Audio transcription for Voice Mapping (streaming disabled)
 app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) => {
+    console.log('🗣️  HIT /audio/transcribe-mapping', new Date().toISOString());
+
     try {
         if (!req.file) {
+            console.log('❌ No audio file in request');
             return res.status(400).json({ error: 'No audio file provided' });
         }
 
-        console.log('[Audio Transcribe Mapping] Received audio:', req.file.size, 'bytes');
+        console.log('📊 Audio details:', {
+            size: req.file.size + ' bytes',
+            mimetype: req.file.mimetype,
+            originalname: req.file.originalname,
+            fieldname: req.file.fieldname
+        });
 
         // Validate minimum audio size (reject tiny/empty files that cause ECONNRESET)
         const MIN_AUDIO_SIZE = 2000; // 2KB minimum (about 0.1 seconds of audio)
         if (req.file.size < MIN_AUDIO_SIZE) {
-            console.log('[Audio Transcribe Mapping] Audio too small, rejected:', req.file.size, 'bytes');
+            console.log('⚠️  Audio too small, rejected:', req.file.size, 'bytes (minimum:', MIN_AUDIO_SIZE, 'bytes)');
             return res.json({
                 success: false,
                 error: 'Audio file too short - please speak for at least 1 second'
             });
         }
+
+        console.log('✅ Audio size valid, proceeding to OpenAI transcription...');
 
         // Create a File object from buffer for OpenAI SDK
         const audioFile = new File([req.file.buffer], req.file.originalname || 'audio.webm', {
@@ -1109,6 +1138,9 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
         });
 
         // Call OpenAI Audio Transcription API
+        console.log('🔄 Calling OpenAI API:', 'https://api.openai.com/v1/audio/transcriptions');
+        console.log('📝 Model: gpt-4o-mini-transcribe (mapping mode)');
+
         const transcription = await openai.audio.transcriptions.create({
             file: audioFile,
             model: 'gpt-4o-mini-transcribe',
@@ -1116,7 +1148,8 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
             // Streaming disabled for mapping mode
         });
 
-        console.log('[Audio Transcribe Mapping] Transcript:', transcription);
+        console.log('✅ OpenAI Response received');
+        console.log('📄 Transcript:', transcription);
 
         res.json({
             success: true,
@@ -1124,7 +1157,13 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
         });
 
     } catch (error) {
-        console.error('[Audio Transcribe Mapping] Error:', error);
+        console.error('❌ OpenAI API Error Details (Voice Mapping):');
+        console.error('  Error type:', error.constructor.name);
+        console.error('  Error message:', error.message);
+        console.error('  Error code:', error.code);
+        console.error('  Error cause:', error.cause);
+        console.error('  Full error:', error);
+
         res.status(500).json({
             success: false,
             error: error.message
@@ -1135,4 +1174,14 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    console.log('');
+    console.log('🔐 Environment Configuration Check:');
+    console.log('  OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? `✅ Set (${process.env.OPENAI_API_KEY.substring(0, 15)}...)` : '❌ NOT SET');
+    console.log('  ANTHROPIC_API_KEY:', process.env.ANTHROPIC_API_KEY ? `✅ Set (${process.env.ANTHROPIC_API_KEY.substring(0, 15)}...)` : '❌ NOT SET');
+    console.log('  GOOGLE_CREDS:', process.env.GOOGLE_CREDS ? '✅ Set' : '⚠️  Not set (optional)');
+    console.log('');
+    console.log('📍 Active Audio Routes:');
+    console.log('  POST /audio/transcribe-live-count → OpenAI gpt-4o-mini-transcribe');
+    console.log('  POST /audio/transcribe-mapping → OpenAI gpt-4o-mini-transcribe');
+    console.log('');
 });
