@@ -1570,7 +1570,10 @@ const KrushFlow = {
     countingCounts: {}, // { itemName: count }
     countingProject: null,
     isListening: false,
-    recognition: null,
+    mediaRecorder: null,
+    mediaStream: null,
+    audioChunks: [],
+    recordingInterval: null,
     unmatchedQueue: [],  // { transcript, timestamp, suggested: null }
     editingItem: null,   // Currently editing item for manual adjustment
     autosaveTimer: null,
@@ -2319,85 +2322,73 @@ const KrushFlow = {
         }
     },
 
-    // Start voice recording
-    startVoiceRecording: function() {
-        // Check if browser supports Web Speech API
-        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-            alert('Voice recognition is not supported in your browser.');
-            return;
-        }
-
+    // Start voice recording using MediaRecorder
+    startVoiceRecording: async function() {
         if (this.countingItems.length === 0) {
             alert('No items loaded. Please select a project first or load test data.');
             return;
         }
 
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-        if (!this.recognition) {
-            this.recognition = new SpeechRecognition();
-            this.recognition.lang = 'en-US';
-            this.recognition.continuous = true; // Continuous listening
-            this.recognition.interimResults = false;
-            this.recognition.maxAlternatives = 1;
-
-            this.recognition.onresult = (event) => {
-                const lastResult = event.results[event.results.length - 1];
-                if (lastResult.isFinal) {
-                    const transcript = lastResult[0].transcript;
-                    console.log('[Voice] Raw transcript:', transcript);
-
-                    // Split multi-command transcripts (e.g., "add 5 shrimp add 3 chicken")
-                    const commands = this.splitMultiCommand(transcript);
-
-                    // Process each command async without blocking
-                    commands.forEach((cmd, idx) => {
-                        setTimeout(() => {
-                            this.processVoiceCommand(cmd).catch(err => {
-                                console.error('[Voice] Processing error:', err);
-                            });
-                        }, idx * 100); // Slight stagger for UI feedback
-                    });
-                }
-            };
-
-            this.recognition.onerror = (event) => {
-                console.error('Speech recognition error:', event.error);
-                if (event.error === 'no-speech') {
-                    // Ignore no-speech errors in continuous mode
-                    return;
-                }
-                if (event.error === 'aborted') {
-                    // User stopped, ignore
-                    return;
-                }
-                document.getElementById('count-voice-status').textContent = 'Error: ' + event.error;
-            };
-
-            this.recognition.onend = () => {
-                // If still supposed to be listening, restart
-                if (this.isListening) {
-                    try {
-                        this.recognition.start();
-                    } catch (error) {
-                        console.log('Recognition ended, could not restart');
-                    }
-                }
-            };
-        }
-
-        // Start listening
-        this.isListening = true;
-        document.getElementById('count-mic-btn').classList.add('recording');
-        document.getElementById('count-voice-status').textContent = '🔴 Recording... (tap to stop)';
-        document.getElementById('count-transcript').textContent = '';
-        document.getElementById('count-parsed').textContent = '';
-
         try {
-            this.recognition.start();
-            console.log('[Voice] Recording started');
+            // Request microphone access
+            this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+            // Create MediaRecorder
+            this.mediaRecorder = new MediaRecorder(this.mediaStream, {
+                mimeType: 'audio/webm;codecs=opus'
+            });
+
+            this.audioChunks = [];
+
+            // Collect audio data
+            this.mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    this.audioChunks.push(event.data);
+                }
+            };
+
+            // Process audio when recording stops
+            this.mediaRecorder.onstop = async () => {
+                if (this.audioChunks.length === 0) return;
+
+                const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
+                this.audioChunks = [];
+
+                console.log('[Audio] Sending audio to OpenAI:', audioBlob.size, 'bytes');
+
+                // Send to server for transcription
+                await this.transcribeAudio(audioBlob);
+            };
+
+            // Start recording
+            this.mediaRecorder.start();
+            this.isListening = true;
+
+            // Update UI
+            document.getElementById('count-mic-btn').classList.add('recording');
+            document.getElementById('count-voice-status').textContent = '🔴 Recording... (tap to stop)';
+            document.getElementById('count-transcript').textContent = '';
+            document.getElementById('count-parsed').textContent = '';
+
+            // Send audio chunks every 3 seconds for continuous transcription
+            this.recordingInterval = setInterval(() => {
+                if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+                    this.mediaRecorder.stop();
+                    // Restart recording immediately for continuous flow
+                    setTimeout(() => {
+                        if (this.isListening) {
+                            this.audioChunks = [];
+                            this.mediaRecorder.start();
+                        }
+                    }, 100);
+                }
+            }, 3000);
+
+            console.log('[Audio] Recording started');
+
         } catch (error) {
-            console.error('Failed to start recognition:', error);
+            console.error('[Audio] Failed to start recording:', error);
+            alert('Could not access microphone. Please grant permission and try again.');
             this.stopVoiceRecording();
         }
     },
@@ -2406,18 +2397,69 @@ const KrushFlow = {
     stopVoiceRecording: function() {
         this.isListening = false;
 
-        if (this.recognition) {
-            try {
-                this.recognition.stop();
-            } catch (error) {
-                console.log('Recognition already stopped');
-            }
+        // Stop recording interval
+        if (this.recordingInterval) {
+            clearInterval(this.recordingInterval);
+            this.recordingInterval = null;
+        }
+
+        // Stop MediaRecorder
+        if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+            this.mediaRecorder.stop();
+        }
+
+        // Stop media stream
+        if (this.mediaStream) {
+            this.mediaStream.getTracks().forEach(track => track.stop());
+            this.mediaStream = null;
         }
 
         // Update UI
         document.getElementById('count-mic-btn').classList.remove('recording');
         document.getElementById('count-voice-status').textContent = 'Tap mic to start recording';
-        console.log('[Voice] Recording stopped');
+        console.log('[Audio] Recording stopped');
+    },
+
+    // Send audio to server for transcription
+    transcribeAudio: async function(audioBlob) {
+        try {
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'audio.webm');
+
+            const response = await fetch('/audio/transcribe-live-count', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error('Transcription failed');
+            }
+
+            const result = await response.json();
+
+            if (result.success && result.transcript) {
+                const transcript = result.transcript.trim();
+                console.log('[Audio] Transcript received:', transcript);
+
+                if (transcript) {
+                    // Split multi-command transcripts
+                    const commands = this.splitMultiCommand(transcript);
+
+                    // Process each command
+                    commands.forEach((cmd, idx) => {
+                        setTimeout(() => {
+                            this.processVoiceCommand(cmd).catch(err => {
+                                console.error('[Voice] Processing error:', err);
+                            });
+                        }, idx * 100);
+                    });
+                }
+            }
+
+        } catch (error) {
+            console.error('[Audio] Transcription error:', error);
+            // Don't show errors to user - just log and continue listening
+        }
     },
 
     // Split multi-command transcripts into individual commands
@@ -3123,49 +3165,87 @@ const KrushFlow = {
         }).join('');
     },
 
-    recordAlias: function(idx, masterItem) {
-        // Check if browser supports Web Speech API
-        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-            alert('Voice recognition is not supported in your browser. Please type the alias manually.');
-            return;
-        }
-
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const recognition = new SpeechRecognition();
-
-        recognition.lang = 'en-US';
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
-
+    recordAlias: async function(idx, masterItem) {
         const micButton = document.getElementById(`mic-${idx}`);
         const statusEl = document.getElementById(`voice-status-${idx}`);
         const inputEl = document.getElementById(`alias-input-${idx}`);
 
-        micButton.classList.add('recording');
-        statusEl.textContent = 'Listening...';
-
-        recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
-            inputEl.value = transcript.toLowerCase().trim();
-            statusEl.textContent = `Heard: "${transcript}"`;
-            micButton.classList.remove('recording');
-        };
-
-        recognition.onerror = (event) => {
-            console.error('Speech recognition error:', event.error);
-            statusEl.textContent = 'Error: ' + event.error;
-            micButton.classList.remove('recording');
-        };
-
-        recognition.onend = () => {
-            micButton.classList.remove('recording');
-        };
-
         try {
-            recognition.start();
+            // Request microphone access
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+            // Create MediaRecorder
+            const mediaRecorder = new MediaRecorder(stream, {
+                mimeType: 'audio/webm;codecs=opus'
+            });
+
+            const audioChunks = [];
+
+            // Collect audio data
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunks.push(event.data);
+                }
+            };
+
+            // Process audio when recording stops
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+
+                console.log('[Voice Mapping] Sending audio to OpenAI:', audioBlob.size, 'bytes');
+
+                try {
+                    // Send to server for transcription
+                    const formData = new FormData();
+                    formData.append('audio', audioBlob, 'audio.webm');
+
+                    const response = await fetch('/audio/transcribe-mapping', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Transcription failed');
+                    }
+
+                    const result = await response.json();
+
+                    if (result.success && result.transcript) {
+                        const transcript = result.transcript.trim().toLowerCase();
+                        inputEl.value = transcript;
+                        statusEl.textContent = `Heard: "${transcript}"`;
+                        console.log('[Voice Mapping] Transcript:', transcript);
+                    } else {
+                        statusEl.textContent = 'No speech detected';
+                    }
+
+                } catch (error) {
+                    console.error('[Voice Mapping] Transcription error:', error);
+                    statusEl.textContent = 'Transcription failed';
+                } finally {
+                    micButton.classList.remove('recording');
+                    // Stop media stream
+                    stream.getTracks().forEach(track => track.stop());
+                }
+            };
+
+            // Update UI
+            micButton.classList.add('recording');
+            statusEl.textContent = 'Recording... (speak now)';
+
+            // Start recording
+            mediaRecorder.start();
+
+            // Auto-stop after 3 seconds
+            setTimeout(() => {
+                if (mediaRecorder.state === 'recording') {
+                    mediaRecorder.stop();
+                }
+            }, 3000);
+
         } catch (error) {
-            console.error('Failed to start recognition:', error);
-            statusEl.textContent = 'Failed to start recording';
+            console.error('[Voice Mapping] Failed to start recording:', error);
+            statusEl.textContent = 'Microphone access denied';
             micButton.classList.remove('recording');
         }
     },
