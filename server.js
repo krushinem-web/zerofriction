@@ -1034,118 +1034,282 @@ Never optimize for convenience over correctness.`
     }
 });
 
-// Side-by-Side Protocol Comparator for Voice Mapping evaluation
-// Compares CURRENT protocol vs NEW (Google STT + ChatGPT ambiguity)
-app.post('/voice-mapping/compare-protocols', express.json(), async (req, res) => {
-    try {
-        const {
-            rawAudioMeta,
-            currentProtocol,
-            googleStt,
-            masterListCandidates,
-            aliasDictionary,
-            recentContext
-        } = req.body;
+// Helper: Parse operation from transcript
+function parseOperation(transcript) {
+    const lower = transcript.toLowerCase();
 
-        if (!masterListCandidates || !Array.isArray(masterListCandidates)) {
-            return res.status(400).json({ error: 'masterListCandidates array required' });
+    if (/\b(erase|clear|delete|zero)\b/.test(lower)) return 'ERASE';
+    if (/\b(add|plus|and)\b/.test(lower)) return 'ADD';
+    if (/\b(subtract|minus|take away|remove)\b/.test(lower)) return 'SUBTRACT';
+    if (/\b(at|equals|is|set)\b/.test(lower)) return 'SET';
+
+    // Default to SET if no clear operation
+    return 'SET';
+}
+
+// Helper: Extract number from transcript
+function extractNumber(transcript) {
+    // Handle written numbers
+    const numberWords = {
+        'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4,
+        'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9,
+        'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13,
+        'fourteen': 14, 'fifteen': 15, 'sixteen': 16, 'seventeen': 17,
+        'eighteen': 18, 'nineteen': 19, 'twenty': 20, 'thirty': 30,
+        'forty': 40, 'fifty': 50, 'sixty': 60, 'seventy': 70,
+        'eighty': 80, 'ninety': 90, 'hundred': 100
+    };
+
+    // Try to find digit sequences first
+    const digitMatch = transcript.match(/\b\d+\b/);
+    if (digitMatch) {
+        return parseInt(digitMatch[0], 10);
+    }
+
+    // Try to find written numbers
+    const words = transcript.toLowerCase().split(/\s+/);
+    for (const word of words) {
+        if (numberWords[word] !== undefined) {
+            return numberWords[word];
         }
+    }
 
-        console.log(`[Protocol Comparator] Comparing protocols for Voice Mapping`);
-        console.log(`[Protocol Comparator] Master list: ${masterListCandidates.length} items`);
-        console.log(`[Protocol Comparator] Current protocol: ${currentProtocol ? 'provided' : 'null'}`);
-        console.log(`[Protocol Comparator] Google STT: ${googleStt ? 'provided' : 'null'}`);
+    return null;
+}
 
-        // Load the Side-by-Side Protocol Comparator prompt from file
-        const promptPath = path.join(__dirname, 'claude prompt.txt');
-        let promptTemplate = '';
+// Helper: Current Protocol Resolution (simple matching)
+function resolveCurrentProtocol(transcript, masterListCandidates, aliasDictionary) {
+    const lower = transcript.toLowerCase().trim();
 
-        try {
-            promptTemplate = fs.readFileSync(promptPath, 'utf8');
-        } catch (error) {
-            console.error('[Protocol Comparator] Failed to load claude prompt.txt:', error);
-            return res.status(500).json({ error: 'Protocol comparator prompt not found' });
+    // 1. Try exact alias match
+    for (const [canonical, aliases] of Object.entries(aliasDictionary)) {
+        if (aliases && Array.isArray(aliases)) {
+            for (const alias of aliases) {
+                if (lower.includes(alias.toLowerCase())) {
+                    return {
+                        canonicalItem: canonical,
+                        confidence: 0.95,
+                        matchType: 'alias'
+                    };
+                }
+            }
         }
+    }
 
-        // Build event payload JSON
-        const eventPayload = {
-            rawAudioMeta: rawAudioMeta || null,
-            currentProtocol: currentProtocol || null,
-            googleStt: googleStt || null,
-            masterListCandidates: masterListCandidates,
-            aliasDictionary: aliasDictionary || {},
-            recentContext: recentContext || null
+    // 2. Try exact match in master list
+    for (const item of masterListCandidates) {
+        if (lower.includes(item.toLowerCase())) {
+            return {
+                canonicalItem: item,
+                confidence: 0.90,
+                matchType: 'exact'
+            };
+        }
+    }
+
+    // 3. Try fuzzy match (simple)
+    let bestMatch = null;
+    let bestSimilarity = 0;
+
+    for (const item of masterListCandidates) {
+        const similarity = calculateSimilarity(lower, item.toLowerCase());
+        if (similarity > bestSimilarity) {
+            bestSimilarity = similarity;
+            bestMatch = item;
+        }
+    }
+
+    if (bestSimilarity >= 0.70) {
+        return {
+            canonicalItem: bestMatch,
+            confidence: bestSimilarity,
+            matchType: 'fuzzy'
         };
+    }
 
-        // Replace the placeholder with actual event payload
-        const fullPrompt = promptTemplate.replace(
-            '<PASTE_EVENT_JSON_HERE>',
-            JSON.stringify(eventPayload, null, 2)
-        );
+    return {
+        canonicalItem: 'UNMAPPED',
+        confidence: 0,
+        matchType: 'none'
+    };
+}
 
-        console.log(`[Protocol Comparator] Sending to Claude for comparison...`);
+// Helper: New Protocol Resolution (with alternatives and better ambiguity handling)
+function resolveNewProtocol(transcript, alternatives, masterListCandidates, aliasDictionary, recentContext) {
+    const allTranscripts = [transcript, ...alternatives];
+    const topChoices = new Set();
 
-        // Use Claude API with Side-by-Side Protocol Comparator prompt
-        const aiResponse = await anthropic.messages.create({
-            model: "claude-3-5-sonnet-20241022",
-            max_tokens: 2000,
-            messages: [{
-                role: "user",
-                content: fullPrompt
-            }]
-        });
+    // Try each transcript variant
+    const results = allTranscripts.map(trans => {
+        const lower = trans.toLowerCase().trim();
 
-        const responseText = aiResponse.content[0].text.trim();
-        console.log(`[Protocol Comparator] Claude response received (${responseText.length} chars)`);
-
-        let comparison;
-        try {
-            comparison = JSON.parse(responseText);
-        } catch (e) {
-            console.error('[Protocol Comparator] Failed to parse Claude response as JSON');
-            return res.status(500).json({
-                success: false,
-                error: 'Could not parse protocol comparison response',
-                rawResponse: responseText
-            });
-        }
-
-        // Validate the response structure
-        if (!comparison.return_current_installed || !comparison.return_new_googleStt_plus_chatgpt_ambiguity) {
-            console.error('[Protocol Comparator] Invalid response structure');
-            return res.status(500).json({
-                success: false,
-                error: 'Invalid protocol comparison structure',
-                rawResponse: comparison
-            });
-        }
-
-        // Log comparison flags
-        if (comparison.comparisonFlags) {
-            console.log(`[Protocol Comparator] Comparison Flags:`);
-            console.log(`  Different canonical item: ${comparison.comparisonFlags.differentCanonicalItem}`);
-            console.log(`  Different operation: ${comparison.comparisonFlags.differentOperation}`);
-            console.log(`  Different value: ${comparison.comparisonFlags.differentValue}`);
-            console.log(`  Current would silently commit: ${comparison.comparisonFlags.currentWouldSilentlyCommit}`);
-            console.log(`  New would request confirmation: ${comparison.comparisonFlags.newWouldRequestConfirmation}`);
-            if (comparison.comparisonFlags.notes && comparison.comparisonFlags.notes.length > 0) {
-                console.log(`  Notes: ${comparison.comparisonFlags.notes.join(', ')}`);
+        // 1. Alias match
+        for (const [canonical, aliases] of Object.entries(aliasDictionary)) {
+            if (aliases && Array.isArray(aliases)) {
+                for (const alias of aliases) {
+                    if (lower.includes(alias.toLowerCase())) {
+                        topChoices.add(canonical);
+                        return {
+                            canonicalItem: canonical,
+                            confidence: 0.95,
+                            source: 'alias'
+                        };
+                    }
+                }
             }
         }
 
-        res.json({
-            success: true,
-            comparison: comparison
-        });
+        // 2. Exact match
+        for (const item of masterListCandidates) {
+            if (lower.includes(item.toLowerCase())) {
+                topChoices.add(item);
+                return {
+                    canonicalItem: item,
+                    confidence: 0.90,
+                    source: 'exact'
+                };
+            }
+        }
 
-    } catch (error) {
-        console.error('[Protocol Comparator] Error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
+        // 3. Fuzzy/phonetic match
+        let bestMatch = null;
+        let bestSimilarity = 0;
+
+        for (const item of masterListCandidates) {
+            const similarity = calculateSimilarity(lower, item.toLowerCase());
+            if (similarity > bestSimilarity) {
+                bestSimilarity = similarity;
+                bestMatch = item;
+            }
+        }
+
+        if (bestMatch && bestSimilarity >= 0.60) {
+            topChoices.add(bestMatch);
+            return {
+                canonicalItem: bestMatch,
+                confidence: bestSimilarity,
+                source: 'fuzzy'
+            };
+        }
+
+        return {
+            canonicalItem: 'UNMAPPED',
+            confidence: 0,
+            source: 'none'
+        };
+    });
+
+    // Pick best result
+    results.sort((a, b) => b.confidence - a.confidence);
+    const best = results[0];
+
+    // Build top 3 choices
+    const topChoicesArray = Array.from(topChoices).slice(0, 3);
+    while (topChoicesArray.length < 3) {
+        topChoicesArray.push('UNMAPPED');
     }
-});
+
+    return {
+        canonicalItem: best.canonicalItem,
+        confidence: best.confidence,
+        matchType: best.source,
+        topChoices: topChoicesArray
+    };
+}
+
+// Side-by-Side Protocol Comparator (implemented directly, no file reading)
+function compareProtocols(transcript, alternatives, masterListCandidates, aliasDictionary, recentContext, rawAudioMeta) {
+    // PROTOCOL 1: Current Installed
+    const currentResult = resolveCurrentProtocol(transcript, masterListCandidates, aliasDictionary);
+    const currentOperation = parseOperation(transcript);
+    const currentValue = currentOperation === 'ERASE' ? 0 : extractNumber(transcript);
+
+    const returnCurrentInstalled = {
+        recording: {
+            endOnPauseRequired: true,
+            vadDetected: rawAudioMeta?.vadPauseMs != null,
+            vadPauseMs: rawAudioMeta?.vadPauseMs || null,
+            vadAssumed: rawAudioMeta?.vadPauseMs == null
+        },
+        inputUsed: {
+            transcript: transcript,
+            confidence: null
+        },
+        resolution: {
+            canonicalItem: currentResult.canonicalItem,
+            operation: currentOperation,
+            value: currentValue,
+            confidence: currentResult.confidence,
+            needsConfirmation: currentResult.confidence < 0.85,
+            topChoices: [
+                currentResult.canonicalItem !== 'UNMAPPED' ? currentResult.canonicalItem : 'UNMAPPED',
+                'UNMAPPED',
+                'UNMAPPED'
+            ]
+        },
+        alias: {
+            shouldAutoSave: false,
+            aliasToSave: null
+        }
+    };
+
+    // PROTOCOL 2: New (Google STT + ChatGPT ambiguity)
+    const newResult = resolveNewProtocol(transcript, alternatives, masterListCandidates, aliasDictionary, recentContext);
+    const newOperation = parseOperation(transcript);
+    const newValue = newOperation === 'ERASE' ? 0 : extractNumber(transcript);
+
+    const returnNewGoogleStt = {
+        recording: {
+            endOnPauseRequired: true,
+            vadDetected: rawAudioMeta?.vadPauseMs != null,
+            vadPauseMs: rawAudioMeta?.vadPauseMs || null,
+            vadAssumed: rawAudioMeta?.vadPauseMs == null,
+            endOfUtteranceMs: rawAudioMeta?.endOfUtteranceMs || null
+        },
+        inputUsed: {
+            transcript: transcript,
+            alternativesUsed: alternatives.slice(0, 3),
+            wordConfidencesPresent: false
+        },
+        resolution: {
+            canonicalItem: newResult.canonicalItem,
+            operation: newOperation,
+            value: newValue,
+            confidence: newResult.confidence,
+            needsConfirmation: newResult.confidence < 0.85,
+            topChoices: newResult.topChoices
+        },
+        alias: {
+            shouldAutoSave: newResult.confidence >= 0.85 && newResult.canonicalItem !== 'UNMAPPED',
+            aliasToSave: newResult.confidence >= 0.85 && newResult.canonicalItem !== 'UNMAPPED' ?
+                transcript.toLowerCase().trim() : null
+        }
+    };
+
+    // Comparison flags
+    const comparisonFlags = {
+        differentCanonicalItem: returnCurrentInstalled.resolution.canonicalItem !== returnNewGoogleStt.resolution.canonicalItem,
+        differentOperation: returnCurrentInstalled.resolution.operation !== returnNewGoogleStt.resolution.operation,
+        differentValue: returnCurrentInstalled.resolution.value !== returnNewGoogleStt.resolution.value,
+        currentWouldSilentlyCommit: !returnCurrentInstalled.resolution.needsConfirmation && returnCurrentInstalled.resolution.canonicalItem !== 'UNMAPPED',
+        newWouldRequestConfirmation: returnNewGoogleStt.resolution.needsConfirmation,
+        aliasWouldBeSavedInNewButNotCurrent: returnNewGoogleStt.alias.shouldAutoSave && !returnCurrentInstalled.alias.shouldAutoSave,
+        notes: []
+    };
+
+    if (comparisonFlags.differentCanonicalItem) {
+        comparisonFlags.notes.push(`Different items: Current="${returnCurrentInstalled.resolution.canonicalItem}" vs New="${returnNewGoogleStt.resolution.canonicalItem}"`);
+    }
+    if (comparisonFlags.currentWouldSilentlyCommit && comparisonFlags.newWouldRequestConfirmation) {
+        comparisonFlags.notes.push('New protocol prevents silent commit that current would allow');
+    }
+
+    return {
+        return_current_installed: returnCurrentInstalled,
+        return_new_googleStt_plus_chatgpt_ambiguity: returnNewGoogleStt,
+        comparisonFlags: comparisonFlags
+    };
+}
 
 // Autosave Live Count state (3-minute interval)
 app.post('/live-count/autosave', express.json(), async (req, res) => {
@@ -1345,55 +1509,24 @@ app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res
         if (masterListCandidates && masterListCandidates.length > 0) {
             console.log(`🔬 [${requestId}] Running side-by-side protocol comparison...`);
 
-            // Load the Side-by-Side Protocol Comparator prompt
-            const promptPath = path.join(__dirname, 'claude prompt.txt');
-            let promptTemplate = '';
-
             try {
-                promptTemplate = fs.readFileSync(promptPath, 'utf8');
-
-                // Build event payload for protocol comparator
-                const eventPayload = {
-                    rawAudioMeta: {
-                        sampleRate: 48000,
-                        durationMs: Math.round((req.file.size / 48000) * 1000), // Rough estimate
-                        vadPauseMs: null,
-                        noiseLevel: null,
-                        deviceHints: null
-                    },
-                    currentProtocol: {
-                        transcript: transcript,
-                        confidence: null,
-                        timing: null
-                    },
-                    googleStt: {
-                        transcript: transcript,
-                        alternatives: alternatives,
-                        wordConfidences: null,
-                        endOfUtteranceMs: null
-                    },
-                    masterListCandidates: masterListCandidates,
-                    aliasDictionary: aliasDictionary,
-                    recentContext: recentContext
+                const rawAudioMeta = {
+                    sampleRate: 48000,
+                    durationMs: Math.round((req.file.size / 48000) * 1000), // Rough estimate
+                    vadPauseMs: null,
+                    noiseLevel: null,
+                    deviceHints: null
                 };
 
-                // Replace placeholder with event payload
-                const fullPrompt = promptTemplate.replace(
-                    '<PASTE_EVENT_JSON_HERE>',
-                    JSON.stringify(eventPayload, null, 2)
+                protocolComparison = compareProtocols(
+                    transcript,
+                    alternatives,
+                    masterListCandidates,
+                    aliasDictionary,
+                    recentContext,
+                    rawAudioMeta
                 );
 
-                // Call Claude for protocol comparison
-                const aiResponse = await anthropic.messages.create({
-                    model: "claude-3-5-sonnet-20241022",
-                    max_tokens: 2000,
-                    messages: [{
-                        role: "user",
-                        content: fullPrompt
-                    }]
-                });
-
-                protocolComparison = JSON.parse(aiResponse.content[0].text.trim());
                 console.log(`✅ [${requestId}] Protocol comparison complete`);
 
                 // Log comparison flags
@@ -1551,55 +1684,24 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
         if (masterListCandidates && masterListCandidates.length > 0) {
             console.log(`🔬 [${requestId}] Running side-by-side protocol comparison...`);
 
-            // Load the Side-by-Side Protocol Comparator prompt
-            const promptPath = path.join(__dirname, 'claude prompt.txt');
-            let promptTemplate = '';
-
             try {
-                promptTemplate = fs.readFileSync(promptPath, 'utf8');
-
-                // Build event payload for protocol comparator
-                const eventPayload = {
-                    rawAudioMeta: {
-                        sampleRate: 48000,
-                        durationMs: Math.round((req.file.size / 48000) * 1000), // Rough estimate
-                        vadPauseMs: null,
-                        noiseLevel: null,
-                        deviceHints: null
-                    },
-                    currentProtocol: {
-                        transcript: transcript,
-                        confidence: null,
-                        timing: null
-                    },
-                    googleStt: {
-                        transcript: transcript,
-                        alternatives: alternatives,
-                        wordConfidences: null,
-                        endOfUtteranceMs: null
-                    },
-                    masterListCandidates: masterListCandidates,
-                    aliasDictionary: aliasDictionary,
-                    recentContext: targetItem ? { lastItem: targetItem } : null
+                const rawAudioMeta = {
+                    sampleRate: 48000,
+                    durationMs: Math.round((req.file.size / 48000) * 1000), // Rough estimate
+                    vadPauseMs: null,
+                    noiseLevel: null,
+                    deviceHints: null
                 };
 
-                // Replace placeholder with event payload
-                const fullPrompt = promptTemplate.replace(
-                    '<PASTE_EVENT_JSON_HERE>',
-                    JSON.stringify(eventPayload, null, 2)
+                protocolComparison = compareProtocols(
+                    transcript,
+                    alternatives,
+                    masterListCandidates,
+                    aliasDictionary,
+                    targetItem ? { lastItem: targetItem } : null,
+                    rawAudioMeta
                 );
 
-                // Call Claude for protocol comparison
-                const aiResponse = await anthropic.messages.create({
-                    model: "claude-3-5-sonnet-20241022",
-                    max_tokens: 2000,
-                    messages: [{
-                        role: "user",
-                        content: fullPrompt
-                    }]
-                });
-
-                protocolComparison = JSON.parse(aiResponse.content[0].text.trim());
                 console.log(`✅ [${requestId}] Protocol comparison complete`);
 
                 // Log comparison flags
@@ -1646,13 +1748,13 @@ app.listen(PORT, () => {
     console.log('  GOOGLE_CREDS:', process.env.GOOGLE_CREDS ? '✅ Set' : '⚠️  Not set (uses default auth)');
     console.log('');
     console.log('📍 Active Audio Routes:');
-    console.log('  POST /audio/transcribe-live-count → Google Cloud Speech (QUEUED)');
-    console.log('  POST /audio/transcribe-mapping → Google Cloud Speech (QUEUED)');
+    console.log('  POST /audio/transcribe-live-count → Google Cloud Speech + Side-by-Side Protocol Comparison');
+    console.log('  POST /audio/transcribe-mapping → Google Cloud Speech + Side-by-Side Protocol Comparison');
     console.log('');
-    console.log('📍 Protocol Testing Routes:');
-    console.log('  POST /voice-mapping/compare-protocols → Side-by-Side Protocol Comparator');
-    console.log('  POST /live-count/parse-command → Constrained Intent Resolution');
+    console.log('📍 Command Parsing Routes:');
+    console.log('  POST /live-count/parse-command → Constrained Intent Resolution (Claude API)');
     console.log('');
     console.log('🔧 Request Queue: Active (prevents simultaneous Speech API calls)');
+    console.log('🔬 Protocol Comparison: Implemented directly (no file reading)');
     console.log('');
 });
