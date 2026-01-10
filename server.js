@@ -1340,7 +1340,7 @@ app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res
     }
 });
 
-// Audio transcription for Voice Mapping
+// Audio transcription for Voice Mapping - WITH SIDE-BY-SIDE PROTOCOL COMPARISON
 app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) => {
     const requestId = uuidv4().substring(0, 8);
     const startTime = Date.now();
@@ -1353,7 +1353,14 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
             return res.status(400).json({ error: 'No audio file provided' });
         }
 
+        // Parse additional form data (sent alongside audio)
+        const masterListCandidates = req.body.masterListCandidates ? JSON.parse(req.body.masterListCandidates) : null;
+        const aliasDictionary = req.body.aliasDictionary ? JSON.parse(req.body.aliasDictionary) : {};
+        const targetItem = req.body.targetItem || null;
+
         console.log(`📊 [${requestId}] Audio: ${req.file.size} bytes, ${req.file.mimetype}`);
+        console.log(`📋 [${requestId}] Master list: ${masterListCandidates ? masterListCandidates.length : 0} items`);
+        console.log(`🔤 [${requestId}] Target item: ${targetItem || 'none'}`);
 
         // Validate minimum audio size
         const MIN_AUDIO_SIZE = 2000; // 2KB minimum (about 0.1 seconds of audio)
@@ -1371,11 +1378,12 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
         // Queue Google Cloud Speech API call to prevent simultaneous requests
         console.log(`📥 [${requestId}] Queuing for Google Cloud Speech (Voice Mapping)`);
 
-        const transcription = await speechQueue.add(async () => {
+        const googleSttResponse = await speechQueue.add(async () => {
             const queueStartTime = Date.now();
             console.log(`🔄 [${requestId}] Start Google Speech call (queued ${queueStartTime - startTime}ms, Voice Mapping)`);
 
-            let result;
+            let transcript = '';
+            let alternatives = [];
             let retryCount = 0;
             const maxRetries = 3;
 
@@ -1391,7 +1399,8 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
                             sampleRateHertz: 48000,
                             languageCode: 'en-US',
                             enableAutomaticPunctuation: true,
-                            model: 'default'
+                            model: 'default',
+                            maxAlternatives: 3 // Get alternatives for protocol comparison
                         }
                     });
 
@@ -1399,14 +1408,26 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
 
                     if (!response.results || response.results.length === 0) {
                         console.log(`⚠️  [${requestId}] No speech detected (${attemptDuration}ms, attempt ${retryCount + 1}, Voice Mapping)`);
-                        return '';
+                        return { transcript: '', alternatives: [] };
                     }
 
-                    result = response.results
+                    // Get primary transcript
+                    transcript = response.results
                         .map(r => r.alternatives[0].transcript)
                         .join(' ');
 
+                    // Get alternatives if available
+                    if (response.results[0] && response.results[0].alternatives) {
+                        alternatives = response.results[0].alternatives
+                            .slice(1, 4) // Take up to 3 alternatives (excluding primary)
+                            .map(alt => alt.transcript);
+                    }
+
                     console.log(`✅ [${requestId}] Google Speech success (${attemptDuration}ms, attempt ${retryCount + 1}, Voice Mapping)`);
+                    console.log(`📄 [${requestId}] Primary transcript: "${transcript}"`);
+                    if (alternatives.length > 0) {
+                        console.log(`📄 [${requestId}] Alternatives: ${JSON.stringify(alternatives)}`);
+                    }
                     break; // Success - exit retry loop
                 } catch (retryError) {
                     const attemptDuration = Date.now() - attemptStart;
@@ -1429,16 +1450,86 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
                 }
             }
 
-            return result;
+            return { transcript, alternatives };
         });
+
+        const { transcript, alternatives } = googleSttResponse;
+
+        // If we have master list data, run protocol comparison
+        let protocolComparison = null;
+        if (masterListCandidates && masterListCandidates.length > 0) {
+            console.log(`🔬 [${requestId}] Running side-by-side protocol comparison...`);
+
+            // Load the Side-by-Side Protocol Comparator prompt
+            const promptPath = path.join(__dirname, 'claude prompt.txt');
+            let promptTemplate = '';
+
+            try {
+                promptTemplate = fs.readFileSync(promptPath, 'utf8');
+
+                // Build event payload for protocol comparator
+                const eventPayload = {
+                    rawAudioMeta: {
+                        sampleRate: 48000,
+                        durationMs: Math.round((req.file.size / 48000) * 1000), // Rough estimate
+                        vadPauseMs: null,
+                        noiseLevel: null,
+                        deviceHints: null
+                    },
+                    currentProtocol: {
+                        transcript: transcript,
+                        confidence: null,
+                        timing: null
+                    },
+                    googleStt: {
+                        transcript: transcript,
+                        alternatives: alternatives,
+                        wordConfidences: null,
+                        endOfUtteranceMs: null
+                    },
+                    masterListCandidates: masterListCandidates,
+                    aliasDictionary: aliasDictionary,
+                    recentContext: targetItem ? { lastItem: targetItem } : null
+                };
+
+                // Replace placeholder with event payload
+                const fullPrompt = promptTemplate.replace(
+                    '<PASTE_EVENT_JSON_HERE>',
+                    JSON.stringify(eventPayload, null, 2)
+                );
+
+                // Call Claude for protocol comparison
+                const aiResponse = await anthropic.messages.create({
+                    model: "claude-3-5-sonnet-20241022",
+                    max_tokens: 2000,
+                    messages: [{
+                        role: "user",
+                        content: fullPrompt
+                    }]
+                });
+
+                protocolComparison = JSON.parse(aiResponse.content[0].text.trim());
+                console.log(`✅ [${requestId}] Protocol comparison complete`);
+
+                // Log comparison flags
+                if (protocolComparison.comparisonFlags) {
+                    console.log(`🔬 [${requestId}] Comparison: Different item=${protocolComparison.comparisonFlags.differentCanonicalItem}, Different op=${protocolComparison.comparisonFlags.differentOperation}`);
+                }
+
+            } catch (error) {
+                console.error(`⚠️  [${requestId}] Protocol comparison failed:`, error.message);
+                // Don't fail the whole request if comparison fails
+            }
+        }
 
         const totalDuration = Date.now() - startTime;
         console.log(`✅ [${requestId}] Complete: ${totalDuration}ms total (Voice Mapping)`);
-        console.log(`📄 [${requestId}] Transcript: "${transcription}"`);
 
         res.json({
             success: true,
-            transcript: transcription
+            transcript: transcript,
+            alternatives: alternatives,
+            protocolComparison: protocolComparison
         });
 
     } catch (error) {
