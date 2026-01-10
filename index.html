@@ -2314,6 +2314,27 @@ const KrushFlow = {
     },
 
     // Toggle recording on/off (simple tap to start, tap to stop)
+    // Get supported audio MIME type for MediaRecorder
+    getSupportedMimeType: function() {
+        const types = [
+            'audio/webm;codecs=opus',
+            'audio/webm',
+            'audio/ogg;codecs=opus',
+            'audio/mp4',
+            'audio/mpeg'
+        ];
+
+        for (const type of types) {
+            if (MediaRecorder.isTypeSupported(type)) {
+                console.log('[Audio] Using MIME type:', type);
+                return type;
+            }
+        }
+
+        console.warn('[Audio] No preferred MIME type supported, using default');
+        return ''; // Let browser choose
+    },
+
     toggleVoiceCounting: function() {
         if (this.isListening) {
             this.stopVoiceRecording();
@@ -2330,13 +2351,21 @@ const KrushFlow = {
         }
 
         try {
+            // Check MediaRecorder support
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('Your browser does not support audio recording. Please use Chrome, Firefox, or Edge.');
+                return;
+            }
+
             // Request microphone access
             this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-            // Create MediaRecorder
-            this.mediaRecorder = new MediaRecorder(this.mediaStream, {
-                mimeType: 'audio/webm;codecs=opus'
-            });
+            // Get supported MIME type
+            this.recordingMimeType = this.getSupportedMimeType();
+
+            // Create MediaRecorder with supported type
+            const options = this.recordingMimeType ? { mimeType: this.recordingMimeType } : {};
+            this.mediaRecorder = new MediaRecorder(this.mediaStream, options);
 
             this.audioChunks = [];
 
@@ -2351,7 +2380,7 @@ const KrushFlow = {
             this.mediaRecorder.onstop = async () => {
                 if (this.audioChunks.length === 0) return;
 
-                const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
+                const audioBlob = new Blob(this.audioChunks, { type: this.recordingMimeType || 'audio/webm' });
                 this.audioChunks = [];
 
                 console.log('[Audio] Sending audio to OpenAI:', audioBlob.size, 'bytes');
@@ -3171,13 +3200,21 @@ const KrushFlow = {
         const inputEl = document.getElementById(`alias-input-${idx}`);
 
         try {
+            // Check MediaRecorder support
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                statusEl.textContent = 'Browser does not support audio recording';
+                return;
+            }
+
             // Request microphone access
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-            // Create MediaRecorder
-            const mediaRecorder = new MediaRecorder(stream, {
-                mimeType: 'audio/webm;codecs=opus'
-            });
+            // Get supported MIME type
+            const mimeType = this.getSupportedMimeType();
+
+            // Create MediaRecorder with supported type
+            const options = mimeType ? { mimeType } : {};
+            const mediaRecorder = new MediaRecorder(stream, options);
 
             const audioChunks = [];
 
@@ -3190,7 +3227,7 @@ const KrushFlow = {
 
             // Process audio when recording stops
             mediaRecorder.onstop = async () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const audioBlob = new Blob(audioChunks, { type: mimeType || 'audio/webm' });
 
                 console.log('[Voice Mapping] Sending audio to OpenAI:', audioBlob.size, 'bytes');
 
