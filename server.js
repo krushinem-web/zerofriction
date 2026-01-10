@@ -1034,6 +1034,119 @@ Never optimize for convenience over correctness.`
     }
 });
 
+// Side-by-Side Protocol Comparator for Voice Mapping evaluation
+// Compares CURRENT protocol vs NEW (Google STT + ChatGPT ambiguity)
+app.post('/voice-mapping/compare-protocols', express.json(), async (req, res) => {
+    try {
+        const {
+            rawAudioMeta,
+            currentProtocol,
+            googleStt,
+            masterListCandidates,
+            aliasDictionary,
+            recentContext
+        } = req.body;
+
+        if (!masterListCandidates || !Array.isArray(masterListCandidates)) {
+            return res.status(400).json({ error: 'masterListCandidates array required' });
+        }
+
+        console.log(`[Protocol Comparator] Comparing protocols for Voice Mapping`);
+        console.log(`[Protocol Comparator] Master list: ${masterListCandidates.length} items`);
+        console.log(`[Protocol Comparator] Current protocol: ${currentProtocol ? 'provided' : 'null'}`);
+        console.log(`[Protocol Comparator] Google STT: ${googleStt ? 'provided' : 'null'}`);
+
+        // Load the Side-by-Side Protocol Comparator prompt from file
+        const promptPath = path.join(__dirname, 'claude prompt.txt');
+        let promptTemplate = '';
+
+        try {
+            promptTemplate = fs.readFileSync(promptPath, 'utf8');
+        } catch (error) {
+            console.error('[Protocol Comparator] Failed to load claude prompt.txt:', error);
+            return res.status(500).json({ error: 'Protocol comparator prompt not found' });
+        }
+
+        // Build event payload JSON
+        const eventPayload = {
+            rawAudioMeta: rawAudioMeta || null,
+            currentProtocol: currentProtocol || null,
+            googleStt: googleStt || null,
+            masterListCandidates: masterListCandidates,
+            aliasDictionary: aliasDictionary || {},
+            recentContext: recentContext || null
+        };
+
+        // Replace the placeholder with actual event payload
+        const fullPrompt = promptTemplate.replace(
+            '<PASTE_EVENT_JSON_HERE>',
+            JSON.stringify(eventPayload, null, 2)
+        );
+
+        console.log(`[Protocol Comparator] Sending to Claude for comparison...`);
+
+        // Use Claude API with Side-by-Side Protocol Comparator prompt
+        const aiResponse = await anthropic.messages.create({
+            model: "claude-3-5-sonnet-20241022",
+            max_tokens: 2000,
+            messages: [{
+                role: "user",
+                content: fullPrompt
+            }]
+        });
+
+        const responseText = aiResponse.content[0].text.trim();
+        console.log(`[Protocol Comparator] Claude response received (${responseText.length} chars)`);
+
+        let comparison;
+        try {
+            comparison = JSON.parse(responseText);
+        } catch (e) {
+            console.error('[Protocol Comparator] Failed to parse Claude response as JSON');
+            return res.status(500).json({
+                success: false,
+                error: 'Could not parse protocol comparison response',
+                rawResponse: responseText
+            });
+        }
+
+        // Validate the response structure
+        if (!comparison.return_current_installed || !comparison.return_new_googleStt_plus_chatgpt_ambiguity) {
+            console.error('[Protocol Comparator] Invalid response structure');
+            return res.status(500).json({
+                success: false,
+                error: 'Invalid protocol comparison structure',
+                rawResponse: comparison
+            });
+        }
+
+        // Log comparison flags
+        if (comparison.comparisonFlags) {
+            console.log(`[Protocol Comparator] Comparison Flags:`);
+            console.log(`  Different canonical item: ${comparison.comparisonFlags.differentCanonicalItem}`);
+            console.log(`  Different operation: ${comparison.comparisonFlags.differentOperation}`);
+            console.log(`  Different value: ${comparison.comparisonFlags.differentValue}`);
+            console.log(`  Current would silently commit: ${comparison.comparisonFlags.currentWouldSilentlyCommit}`);
+            console.log(`  New would request confirmation: ${comparison.comparisonFlags.newWouldRequestConfirmation}`);
+            if (comparison.comparisonFlags.notes && comparison.comparisonFlags.notes.length > 0) {
+                console.log(`  Notes: ${comparison.comparisonFlags.notes.join(', ')}`);
+            }
+        }
+
+        res.json({
+            success: true,
+            comparison: comparison
+        });
+
+    } catch (error) {
+        console.error('[Protocol Comparator] Error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 // Autosave Live Count state (3-minute interval)
 app.post('/live-count/autosave', express.json(), async (req, res) => {
     try {
@@ -1353,6 +1466,10 @@ app.listen(PORT, () => {
     console.log('📍 Active Audio Routes:');
     console.log('  POST /audio/transcribe-live-count → Google Cloud Speech (QUEUED)');
     console.log('  POST /audio/transcribe-mapping → Google Cloud Speech (QUEUED)');
+    console.log('');
+    console.log('📍 Protocol Testing Routes:');
+    console.log('  POST /voice-mapping/compare-protocols → Side-by-Side Protocol Comparator');
+    console.log('  POST /live-count/parse-command → Constrained Intent Resolution');
     console.log('');
     console.log('🔧 Request Queue: Active (prevents simultaneous Speech API calls)');
     console.log('');
