@@ -1,44 +1,17 @@
 const express = require('express');
 const multer = require('multer');
 const vision = require('@google-cloud/vision');
+const speech = require('@google-cloud/speech');
 const Anthropic = require('@anthropic-ai/sdk');
-const OpenAI = require('openai');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
-const https = require('https');
-const http = require('http');
 
 const app = express();
 const upload = multer({ limits: { fileSize: 8 * 1024 * 1024 } });
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// Create keep-alive HTTPS agent for OpenAI connections
-const httpsAgent = new https.Agent({
-    keepAlive: true,
-    keepAliveMsecs: 30000, // 30 seconds
-    maxSockets: 10,
-    maxFreeSockets: 5,
-    timeout: 60000, // 60 second socket timeout
-    scheduling: 'lifo' // Reuse most recently used sockets
-});
-
-const httpAgent = new http.Agent({
-    keepAlive: true,
-    keepAliveMsecs: 30000,
-    maxSockets: 10,
-    maxFreeSockets: 5,
-    timeout: 60000
-});
-
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-    httpAgent: httpsAgent, // Use keep-alive agent
-    timeout: 60000, // 60 second request timeout
-    maxRetries: 0 // We handle retries ourselves
-});
-
-// OpenAI Request Queue - prevent simultaneous calls that cause ECONNRESET
+// Google Cloud Speech Request Queue - prevent simultaneous calls
 class RequestQueue {
     constructor() {
         this.queue = [];
@@ -70,7 +43,24 @@ class RequestQueue {
     }
 }
 
-const openaiQueue = new RequestQueue();
+const speechQueue = new RequestQueue();
+
+// Configure Google Cloud Speech client
+let speechClient;
+try {
+    if (process.env.GOOGLE_CREDS) {
+        // Local development with explicit credentials
+        speechClient = new speech.SpeechClient({
+            credentials: JSON.parse(process.env.GOOGLE_CREDS)
+        });
+    } else {
+        // Railway/production - uses automatic authentication
+        speechClient = new speech.SpeechClient();
+    }
+} catch (error) {
+    console.error('Speech client initialization error:', error.message);
+    speechClient = new speech.SpeechClient(); // Fallback to default
+}
 
 // Configure Vision client - Railway uses automatic auth, local uses GOOGLE_CREDS
 let visionClient;
@@ -1060,10 +1050,10 @@ app.post('/live-count/save', express.json(), async (req, res) => {
 });
 
 // ============================================
-// OPENAI AUDIO TRANSCRIPTION ENDPOINTS
+// GOOGLE CLOUD SPEECH TRANSCRIPTION ENDPOINTS
 // ============================================
 
-// Audio transcription for Live Count (streaming enabled)
+// Audio transcription for Live Count
 app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res) => {
     const requestId = uuidv4().substring(0, 8);
     const startTime = Date.now();
@@ -1078,7 +1068,7 @@ app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res
 
         console.log(`📊 [${requestId}] Audio: ${req.file.size} bytes, ${req.file.mimetype}`);
 
-        // Validate minimum audio size (reject tiny/empty files that cause ECONNRESET)
+        // Validate minimum audio size
         const MIN_AUDIO_SIZE = 2000; // 2KB minimum (about 0.1 seconds of audio)
         if (req.file.size < MIN_AUDIO_SIZE) {
             console.log(`⚠️  [${requestId}] Rejected: ${req.file.size} bytes < ${MIN_AUDIO_SIZE} bytes minimum`);
@@ -1091,17 +1081,12 @@ app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res
         // Fully buffer the uploaded file (already in req.file.buffer via multer)
         console.log(`✅ [${requestId}] Audio buffered and validated`);
 
-        // Create a File object from buffer for OpenAI SDK
-        const audioFile = new File([req.file.buffer], req.file.originalname || 'audio.webm', {
-            type: req.file.mimetype || 'audio/webm'
-        });
+        // Queue Google Cloud Speech API call to prevent simultaneous requests
+        console.log(`📥 [${requestId}] Queuing for Google Cloud Speech`);
 
-        // Queue OpenAI API call to prevent simultaneous requests that cause ECONNRESET
-        console.log(`📥 [${requestId}] Queuing for OpenAI (model: gpt-4o-mini-transcribe)`);
-
-        const transcription = await openaiQueue.add(async () => {
+        const transcription = await speechQueue.add(async () => {
             const queueStartTime = Date.now();
-            console.log(`🔄 [${requestId}] Start OpenAI call (queued ${queueStartTime - startTime}ms)`);
+            console.log(`🔄 [${requestId}] Start Google Speech call (queued ${queueStartTime - startTime}ms)`);
 
             let result;
             let retryCount = 0;
@@ -1110,20 +1095,39 @@ app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res
             while (retryCount <= maxRetries) {
                 const attemptStart = Date.now();
                 try {
-                    result = await openai.audio.transcriptions.create({
-                        file: audioFile,
-                        model: 'gpt-4o-mini-transcribe',
-                        response_format: 'text',
+                    const [response] = await speechClient.recognize({
+                        audio: {
+                            content: req.file.buffer.toString('base64')
+                        },
+                        config: {
+                            encoding: 'WEBM_OPUS',
+                            sampleRateHertz: 48000,
+                            languageCode: 'en-US',
+                            enableAutomaticPunctuation: true,
+                            model: 'default'
+                        }
                     });
+
                     const attemptDuration = Date.now() - attemptStart;
-                    console.log(`✅ [${requestId}] OpenAI success (${attemptDuration}ms, attempt ${retryCount + 1})`);
+
+                    if (!response.results || response.results.length === 0) {
+                        console.log(`⚠️  [${requestId}] No speech detected (${attemptDuration}ms, attempt ${retryCount + 1})`);
+                        return '';
+                    }
+
+                    result = response.results
+                        .map(r => r.alternatives[0].transcript)
+                        .join(' ');
+
+                    console.log(`✅ [${requestId}] Google Speech success (${attemptDuration}ms, attempt ${retryCount + 1})`);
                     break; // Success - exit retry loop
                 } catch (retryError) {
                     const attemptDuration = Date.now() - attemptStart;
                     const isNetworkError = retryError.code === 'ECONNRESET' ||
                                           retryError.code === 'ETIMEDOUT' ||
                                           retryError.code === 'ENOTFOUND' ||
-                                          (retryError.status >= 500 && retryError.status < 600);
+                                          retryError.code === 14 || // Google UNAVAILABLE
+                                          retryError.code === 4;   // Google DEADLINE_EXCEEDED
 
                     if (!isNetworkError || retryCount >= maxRetries) {
                         console.log(`❌ [${requestId}] Failed after ${attemptDuration}ms: ${retryError.message} (code: ${retryError.code}, attempt ${retryCount + 1})`);
@@ -1164,7 +1168,7 @@ app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res
     }
 });
 
-// Audio transcription for Voice Mapping (streaming disabled)
+// Audio transcription for Voice Mapping
 app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) => {
     const requestId = uuidv4().substring(0, 8);
     const startTime = Date.now();
@@ -1179,7 +1183,7 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
 
         console.log(`📊 [${requestId}] Audio: ${req.file.size} bytes, ${req.file.mimetype}`);
 
-        // Validate minimum audio size (reject tiny/empty files that cause ECONNRESET)
+        // Validate minimum audio size
         const MIN_AUDIO_SIZE = 2000; // 2KB minimum (about 0.1 seconds of audio)
         if (req.file.size < MIN_AUDIO_SIZE) {
             console.log(`⚠️  [${requestId}] Rejected: ${req.file.size} bytes < ${MIN_AUDIO_SIZE} bytes minimum`);
@@ -1192,17 +1196,12 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
         // Fully buffer the uploaded file (already in req.file.buffer via multer)
         console.log(`✅ [${requestId}] Audio buffered and validated`);
 
-        // Create a File object from buffer for OpenAI SDK
-        const audioFile = new File([req.file.buffer], req.file.originalname || 'audio.webm', {
-            type: req.file.mimetype || 'audio/webm'
-        });
+        // Queue Google Cloud Speech API call to prevent simultaneous requests
+        console.log(`📥 [${requestId}] Queuing for Google Cloud Speech (Voice Mapping)`);
 
-        // Queue OpenAI API call to prevent simultaneous requests that cause ECONNRESET
-        console.log(`📥 [${requestId}] Queuing for OpenAI (model: gpt-4o-mini-transcribe, Voice Mapping)`);
-
-        const transcription = await openaiQueue.add(async () => {
+        const transcription = await speechQueue.add(async () => {
             const queueStartTime = Date.now();
-            console.log(`🔄 [${requestId}] Start OpenAI call (queued ${queueStartTime - startTime}ms, Voice Mapping)`);
+            console.log(`🔄 [${requestId}] Start Google Speech call (queued ${queueStartTime - startTime}ms, Voice Mapping)`);
 
             let result;
             let retryCount = 0;
@@ -1211,20 +1210,39 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
             while (retryCount <= maxRetries) {
                 const attemptStart = Date.now();
                 try {
-                    result = await openai.audio.transcriptions.create({
-                        file: audioFile,
-                        model: 'gpt-4o-mini-transcribe',
-                        response_format: 'text',
+                    const [response] = await speechClient.recognize({
+                        audio: {
+                            content: req.file.buffer.toString('base64')
+                        },
+                        config: {
+                            encoding: 'WEBM_OPUS',
+                            sampleRateHertz: 48000,
+                            languageCode: 'en-US',
+                            enableAutomaticPunctuation: true,
+                            model: 'default'
+                        }
                     });
+
                     const attemptDuration = Date.now() - attemptStart;
-                    console.log(`✅ [${requestId}] OpenAI success (${attemptDuration}ms, attempt ${retryCount + 1}, Voice Mapping)`);
+
+                    if (!response.results || response.results.length === 0) {
+                        console.log(`⚠️  [${requestId}] No speech detected (${attemptDuration}ms, attempt ${retryCount + 1}, Voice Mapping)`);
+                        return '';
+                    }
+
+                    result = response.results
+                        .map(r => r.alternatives[0].transcript)
+                        .join(' ');
+
+                    console.log(`✅ [${requestId}] Google Speech success (${attemptDuration}ms, attempt ${retryCount + 1}, Voice Mapping)`);
                     break; // Success - exit retry loop
                 } catch (retryError) {
                     const attemptDuration = Date.now() - attemptStart;
                     const isNetworkError = retryError.code === 'ECONNRESET' ||
                                           retryError.code === 'ETIMEDOUT' ||
                                           retryError.code === 'ENOTFOUND' ||
-                                          (retryError.status >= 500 && retryError.status < 600);
+                                          retryError.code === 14 || // Google UNAVAILABLE
+                                          retryError.code === 4;   // Google DEADLINE_EXCEEDED
 
                     if (!isNetworkError || retryCount >= maxRetries) {
                         console.log(`❌ [${requestId}] Failed after ${attemptDuration}ms: ${retryError.message} (code: ${retryError.code}, attempt ${retryCount + 1}, Voice Mapping)`);
@@ -1270,14 +1288,13 @@ app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log('');
     console.log('🔐 Environment Configuration Check:');
-    console.log('  OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? `✅ Set (${process.env.OPENAI_API_KEY.substring(0, 15)}...)` : '❌ NOT SET');
     console.log('  ANTHROPIC_API_KEY:', process.env.ANTHROPIC_API_KEY ? `✅ Set (${process.env.ANTHROPIC_API_KEY.substring(0, 15)}...)` : '❌ NOT SET');
-    console.log('  GOOGLE_CREDS:', process.env.GOOGLE_CREDS ? '✅ Set' : '⚠️  Not set (optional)');
+    console.log('  GOOGLE_CREDS:', process.env.GOOGLE_CREDS ? '✅ Set' : '⚠️  Not set (uses default auth)');
     console.log('');
     console.log('📍 Active Audio Routes:');
-    console.log('  POST /audio/transcribe-live-count → OpenAI gpt-4o-mini-transcribe (QUEUED)');
-    console.log('  POST /audio/transcribe-mapping → OpenAI gpt-4o-mini-transcribe (QUEUED)');
+    console.log('  POST /audio/transcribe-live-count → Google Cloud Speech (QUEUED)');
+    console.log('  POST /audio/transcribe-mapping → Google Cloud Speech (QUEUED)');
     console.log('');
-    console.log('🔧 Request Queue: Active (prevents simultaneous OpenAI calls)');
+    console.log('🔧 Request Queue: Active (prevents simultaneous Speech API calls)');
     console.log('');
 });
