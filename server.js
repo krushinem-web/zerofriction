@@ -525,8 +525,6 @@ app.post('/parse-excel', upload.single('file'), async (req, res) => {
 // ============================================
 // MASTER LIST PERSISTENCE ENDPOINTS
 // ============================================
-const fs = require('fs');
-const path = require('path');
 
 // Ensure data directory exists
 const DATA_DIR = path.join(__dirname, 'data', 'projects');
