@@ -1012,6 +1012,16 @@ app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res
 
         console.log('[Audio Transcribe Live Count] Received audio:', req.file.size, 'bytes');
 
+        // Validate minimum audio size (reject tiny/empty files that cause ECONNRESET)
+        const MIN_AUDIO_SIZE = 2000; // 2KB minimum (about 0.1 seconds of audio)
+        if (req.file.size < MIN_AUDIO_SIZE) {
+            console.log('[Audio Transcribe Live Count] Audio too small, rejected:', req.file.size, 'bytes');
+            return res.json({
+                success: false,
+                error: 'Audio file too short - please speak for at least 1 second'
+            });
+        }
+
         // Create a File object from buffer for OpenAI SDK
         const audioFile = new File([req.file.buffer], req.file.originalname || 'audio.webm', {
             type: req.file.mimetype || 'audio/webm'
@@ -1082,6 +1092,16 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
         }
 
         console.log('[Audio Transcribe Mapping] Received audio:', req.file.size, 'bytes');
+
+        // Validate minimum audio size (reject tiny/empty files that cause ECONNRESET)
+        const MIN_AUDIO_SIZE = 2000; // 2KB minimum (about 0.1 seconds of audio)
+        if (req.file.size < MIN_AUDIO_SIZE) {
+            console.log('[Audio Transcribe Mapping] Audio too small, rejected:', req.file.size, 'bytes');
+            return res.json({
+                success: false,
+                error: 'Audio file too short - please speak for at least 1 second'
+            });
+        }
 
         // Create a File object from buffer for OpenAI SDK
         const audioFile = new File([req.file.buffer], req.file.originalname || 'audio.webm', {
