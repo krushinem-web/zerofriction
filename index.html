@@ -2774,9 +2774,9 @@ const KrushFlow = {
         }
     },
 
-    // Stage 7: State Mutation - Apply ADD/SUBTRACT/SET operations
+    // Stage 7: State Mutation - Apply ADD/SUBTRACT/SET/ERASE operations
     applyCountMutation: function(parsed) {
-        const { item, operation, quantity } = parsed;
+        const { item, operation, quantity, confidence, needsConfirmation, aliasToSave } = parsed;
 
         // Validate item exists
         if (!this.countingCounts.hasOwnProperty(item)) {
@@ -2784,6 +2784,29 @@ const KrushFlow = {
             document.getElementById('count-parsed').textContent = '❌ Item not in list';
             this.playAudioFeedback('error');
             return;
+        }
+
+        // Handle alias learning
+        if (aliasToSave && aliasToSave.trim()) {
+            console.log(`[Alias Learning] Suggesting alias: "${aliasToSave}" → "${item}"`);
+            // Auto-save the alias for this project
+            if (!this.voiceMappingAliases) {
+                this.voiceMappingAliases = {};
+            }
+            if (!this.voiceMappingAliases[item]) {
+                this.voiceMappingAliases[item] = [];
+            }
+            const normalizedAlias = aliasToSave.toLowerCase().trim();
+            if (!this.voiceMappingAliases[item].includes(normalizedAlias)) {
+                this.voiceMappingAliases[item].push(normalizedAlias);
+                console.log(`[Alias Learning] Auto-saved alias: "${normalizedAlias}" → "${item}"`);
+                // Save aliases to server asynchronously (non-blocking)
+                if (this.countingProject) {
+                    this.saveAliasesToServer(this.countingProject, this.voiceMappingAliases).catch(err => {
+                        console.error('[Alias Learning] Failed to save to server:', err);
+                    });
+                }
+            }
         }
 
         const currentCount = this.countingCounts[item];
@@ -2800,6 +2823,9 @@ const KrushFlow = {
             case 'SET':
                 newCount = quantity;
                 break;
+            case 'ERASE':
+                newCount = 0; // Equivalent to SET 0
+                break;
             default:
                 console.error('[State Mutation] Invalid operation:', operation);
                 this.playAudioFeedback('error');
@@ -2809,11 +2835,20 @@ const KrushFlow = {
         // Apply mutation
         this.countingCounts[item] = newCount;
 
-        console.log(`[State Mutation] ${item}: ${currentCount} → ${newCount} (${operation} ${quantity})`);
+        // Log with confidence if available
+        const confidenceStr = confidence !== undefined ? ` (confidence: ${(confidence * 100).toFixed(0)}%)` : '';
+        const confirmStr = needsConfirmation ? ' [needs confirmation]' : '';
+        console.log(`[State Mutation] ${item}: ${currentCount} → ${newCount} (${operation} ${quantity})${confidenceStr}${confirmStr}`);
 
         // Update UI
         this.renderCountingItems();
-        document.getElementById('count-voice-status').textContent = `✓ ${item} = ${newCount}`;
+
+        // Show confidence indicator in UI if needed
+        let statusText = `✓ ${item} = ${newCount}`;
+        if (needsConfirmation) {
+            statusText += ' (verify)';
+        }
+        document.getElementById('count-voice-status').textContent = statusText;
 
         // Audible feedback (canonical requirement)
         this.playAudioFeedback('success', newCount);
@@ -3642,6 +3677,29 @@ const KrushFlow = {
             console.error('Failed to save aliases:', error);
             alert('Failed to save aliases: ' + error.message);
         }
+    },
+
+    // Helper: Save aliases to server programmatically (for auto-learning)
+    saveAliasesToServer: async function(projectName, aliases) {
+        if (!projectName || !aliases) {
+            throw new Error('Project name and aliases required');
+        }
+
+        const response = await fetch(`/projects/${encodeURIComponent(projectName)}/aliases`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                aliases: aliases
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to save aliases to server');
+        }
+
+        const data = await response.json();
+        console.log(`[Alias Learning] Saved ${data.aliasCount} aliases to server`);
+        return data;
     },
 
     // ===== THEME FUNCTIONS =====

@@ -827,9 +827,10 @@ app.get('/projects/:projectName/aliases', (req, res) => {
 // ============================================
 
 // Parse voice command using Claude API (client sends transcript, not audio)
+// Uses constrained intent-resolution engine for maximum accuracy
 app.post('/live-count/parse-command', express.json(), async (req, res) => {
     try {
-        const { transcript, masterList, aliases } = req.body;
+        const { transcript, masterList, aliases, recentContext } = req.body;
 
         if (!transcript) {
             return res.status(400).json({ error: 'Transcript required' });
@@ -843,8 +844,7 @@ app.post('/live-count/parse-command', express.json(), async (req, res) => {
         console.log(`[Live Count Parse] Master list: ${masterList.length} items`);
         console.log(`[Live Count Parse] Aliases: ${Object.keys(aliases || {}).length} mappings`);
 
-        // Build context of available items and aliases for Claude
-        const availableItems = [...masterList];
+        // Build alias context for Claude
         const aliasContext = [];
         if (aliases) {
             for (const [masterItem, aliasList] of Object.entries(aliases)) {
@@ -854,41 +854,124 @@ app.post('/live-count/parse-command', express.json(), async (req, res) => {
             }
         }
 
-        // Use Claude API to parse voice command
+        // Use Claude API with constrained intent-resolution prompt
         const aiResponse = await anthropic.messages.create({
             model: "claude-3-5-sonnet-20241022",
-            max_tokens: 400,
+            max_tokens: 500,
             messages: [{
                 role: "user",
-                content: `You are a voice command parser for inventory counting.
+                content: `You are a constrained intent-resolution engine for a voice-driven counting system.
+
+IMPORTANT:
+You are NOT a speech recognizer.
+You are NOT allowed to invent items.
+You may ONLY choose from the provided candidate lists.
+
+Your job is to resolve user intent from imperfect voice transcription by choosing the most plausible interpretation under strict constraints.
+
+––––––––––––––––––––
+INPUT
+––––––––––––––––––––
 
 TRANSCRIPT: "${transcript}"
 
-MASTER LIST ITEMS:
-${availableItems.slice(0, 50).join(', ')}${availableItems.length > 50 ? ` ... (${availableItems.length} total items)` : ''}
+VALID CANDIDATE ITEMS (canonical inventory items):
+${masterList.join('\n')}
 
-${aliasContext.length > 0 ? `VOICE ALIASES:\n${aliasContext.slice(0, 20).join('\n')}${aliasContext.length > 20 ? `\n... (${aliasContext.length} total aliases)` : ''}` : ''}
+${aliasContext.length > 0 ? `KNOWN VOICE ALIASES:\n${aliasContext.join('\n')}` : ''}
 
-TASK:
-Extract item name, operation, and quantity from the transcript.
+${recentContext ? `RECENT CONTEXT: ${recentContext}` : ''}
 
-RULES:
-1. Operation MUST be one of: ADD, SUBTRACT, SET
-2. Quantity MUST be a positive number
-3. Item name should match or be close to an item in the master list or aliases
-4. Be lenient with pronunciation variations (e.g., "shrimps" → "shrimp")
-5. If the command is unclear or missing any part, return error
+––––––––––––––––––––
+ABSOLUTE RULES (NON-NEGOTIABLE)
+––––––––––––––––––––
 
-EXAMPLES:
-- "add 5 shrimp" → {"item": "shrimp", "operation": "ADD", "quantity": 5}
-- "set chicken to 100" → {"item": "chicken", "operation": "SET", "quantity": 100}
-- "subtract 3 salmon" → {"item": "salmon", "operation": "SUBTRACT", "quantity": 3}
+• You may ONLY output a canonical item that exists in the candidate list.
+• You may NOT invent, rename, or modify item names.
+• If no candidate is plausible, return canonicalItem: "UNMAPPED".
+• If confidence is low, mark needsConfirmation: true.
+• Output JSON ONLY. No commentary. No markdown.
 
-Return ONLY valid JSON in this exact format:
-{"item": "string", "operation": "ADD|SUBTRACT|SET", "quantity": number}
+––––––––––––––––––––
+VERB INTERPRETATION RULES
+––––––––––––––––––––
 
-Or if error:
-{"error": "description of what's missing or unclear"}`
+Normalize operations as:
+
+ADD       → increase existing count
+SUBTRACT  → decrease existing count (minimum 0)
+SET       → overwrite existing count
+ERASE     → equivalent to SET with value 0
+
+Notes:
+• "at", "equals", "is" → usually SET
+• "add", "plus", "and" → ADD
+• "take away", "minus", "subtract" → SUBTRACT
+• "erase", "clear", "zero" → ERASE
+• If unclear, choose the most conservative interpretation.
+
+––––––––––––––––––––
+NUMBER HANDLING RULES
+––––––––––––––––––––
+
+• Combine multiple numbers ONLY if speech implies addition (e.g., "34 plus 34" → 68)
+• Do NOT invent numbers
+• If no valid number is present, set value = null
+
+––––––––––––––––––––
+CONFIDENCE RULES
+––––––––––––––––––––
+
+Return a confidence score from 0.00 to 1.00 based on:
+• Strength of match between item phrase and chosen item
+• Clarity of verb
+• Clarity of number interpretation
+• Use of recent context (if provided)
+
+Guidelines:
+≥ 0.85 → confident (needsConfirmation: false)
+0.60–0.84 → plausible but needs confirmation (needsConfirmation: true)
+< 0.60 → UNMAPPED
+
+––––––––––––––––––––
+ALIAS LEARNING RULE
+––––––––––––––––––––
+
+If the spoken item phrase clearly maps to a canonical item but isn't in the alias list, return an aliasToSave value so the system can store it permanently.
+
+Example:
+spoken: "rebs"
+canonical: "Ribs"
+aliasToSave: "rebs"
+
+––––––––––––––––––––
+OUTPUT FORMAT (STRICT)
+––––––––––––––––––––
+
+Return EXACTLY this JSON structure:
+
+{
+  "canonicalItem": "string | UNMAPPED",
+  "operation": "ADD | SUBTRACT | SET | ERASE | null",
+  "value": number | null,
+  "confidence": number,
+  "needsConfirmation": boolean,
+  "aliasToSave": "string | null"
+}
+
+––––––––––––––––––––
+DECISION PRIORITY ORDER
+––––––––––––––––––––
+
+1) Exact alias match (if provided)
+2) Strong phonetic similarity to candidate items
+3) Fuzzy textual similarity to candidate items
+4) Recent context (if provided)
+5) If still unclear → UNMAPPED
+
+Never guess outside the candidate list.
+Never hallucinate.
+Never optimize for convenience over correctness.`
             }]
         });
 
@@ -906,64 +989,40 @@ Or if error:
             });
         }
 
-        // If Claude returned an error
-        if (parsed.error) {
-            console.log(`[Live Count Parse] Claude error: ${parsed.error}`);
+        // Handle UNMAPPED response
+        if (parsed.canonicalItem === 'UNMAPPED') {
+            console.log(`[Live Count Parse] UNMAPPED - confidence too low or no match`);
             return res.json({
                 success: false,
-                error: parsed.error
+                error: 'Could not identify item from master list',
+                unmapped: true
             });
         }
 
-        // Validate parsed data
-        if (!parsed.item || !parsed.operation || parsed.quantity === undefined) {
+        // Validate canonical item exists in master list
+        const matchedItem = masterList.find(item =>
+            item.toLowerCase().trim() === parsed.canonicalItem.toLowerCase().trim()
+        );
+
+        if (!matchedItem) {
+            console.log(`[Live Count Parse] ERROR: Claude returned item not in master list: "${parsed.canonicalItem}"`);
             return res.json({
                 success: false,
-                error: 'Invalid command format'
-            });
-        }
-
-        // Match item against master list and aliases
-        const itemLower = parsed.item.toLowerCase().trim();
-        let matchedItem = null;
-
-        // Check aliases first
-        if (aliases) {
-            for (const [masterItem, aliasList] of Object.entries(aliases)) {
-                if (aliasList.some(alias => alias.toLowerCase().trim() === itemLower)) {
-                    matchedItem = masterItem;
-                    console.log(`[Live Count Parse] ALIAS MATCH: "${parsed.item}" → "${masterItem}"`);
-                    break;
-                }
-            }
-        }
-
-        // Check master list if no alias match
-        if (!matchedItem) {
-            matchedItem = masterList.find(item =>
-                item.toLowerCase().trim() === itemLower
-            );
-            if (matchedItem) {
-                console.log(`[Live Count Parse] MASTER LIST MATCH: "${parsed.item}" → "${matchedItem}"`);
-            }
-        }
-
-        // If no match found
-        if (!matchedItem) {
-            console.log(`[Live Count Parse] NO MATCH for "${parsed.item}"`);
-            return res.json({
-                success: false,
-                error: 'Item not found in master list'
+                error: 'Invalid item returned'
             });
         }
 
         // Success!
-        console.log(`[Live Count Parse] SUCCESS: ${parsed.operation} ${parsed.quantity} ${matchedItem}`);
+        console.log(`[Live Count Parse] SUCCESS: ${parsed.operation} ${parsed.value} ${matchedItem} (confidence: ${parsed.confidence})`);
+
         res.json({
             success: true,
             item: matchedItem,
             operation: parsed.operation,
-            quantity: parsed.quantity
+            quantity: parsed.value,
+            confidence: parsed.confidence,
+            needsConfirmation: parsed.needsConfirmation,
+            aliasToSave: parsed.aliasToSave
         });
 
     } catch (error) {
