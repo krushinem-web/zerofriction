@@ -1159,6 +1159,48 @@
             margin-top: 0.5rem;
         }
 
+        .unmapped-item {
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .unmapped-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .unmapped-transcript-edit {
+            margin-bottom: 0.75rem;
+        }
+
+        .transcript-input {
+            width: 100%;
+            padding: 0.75rem;
+            font-size: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--glass-border);
+            background: var(--bg-card);
+            color: var(--text-main);
+            font-family: inherit;
+        }
+
+        .transcript-input:focus {
+            outline: none;
+            border-color: var(--brand);
+            background: var(--bg-main);
+        }
+
+        .unmapped-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
         .btn-small {
             padding: 0.5rem 1rem;
             font-size: 0.9rem;
@@ -1173,6 +1215,28 @@
         .btn-small:hover {
             background: var(--brand);
             border-color: var(--brand);
+            color: white;
+        }
+
+        .btn-small.btn-primary {
+            background: var(--success);
+            border-color: var(--success);
+            color: white;
+        }
+
+        .btn-small.btn-primary:hover {
+            background: #27ae60;
+            border-color: #27ae60;
+        }
+
+        .btn-small.btn-danger {
+            background: transparent;
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+
+        .btn-small.btn-danger:hover {
+            background: var(--danger);
             color: white;
         }
 
@@ -1607,6 +1671,17 @@ const KrushFlow = {
     openDailyScan: async function() {
         // Load available projects
         await this.loadProjects();
+
+        // Populate daily scan project selector
+        const dsSelector = document.getElementById('daily-scan-project-selector');
+        dsSelector.innerHTML = '<option value="">Select a project...</option>';
+        this.availableProjects.forEach(project => {
+            const option = document.createElement('option');
+            option.value = project.name;
+            option.textContent = `${project.name} (${project.itemCount} items)`;
+            dsSelector.appendChild(option);
+        });
+
         this.currentScanId = null;
         this.currentAlignment = null;
         document.getElementById('alignment-results').classList.add('hidden');
@@ -2474,10 +2549,10 @@ const KrushFlow = {
                     // Split multi-command transcripts
                     const commands = this.splitMultiCommand(transcript);
 
-                    // Process each command
+                    // Process each command, passing audio blob for unmapped storage
                     commands.forEach((cmd, idx) => {
                         setTimeout(() => {
-                            this.processVoiceCommand(cmd).catch(err => {
+                            this.processVoiceCommand(cmd, audioBlob).catch(err => {
                                 console.error('[Voice] Processing error:', err);
                             });
                         }, idx * 100);
@@ -2530,7 +2605,7 @@ const KrushFlow = {
     },
 
     // Stage 6: Voice Parsing - Extract item, operation, quantity
-    processVoiceCommand: async function(transcript) {
+    processVoiceCommand: async function(transcript, audioBlob = null) {
         console.log('[Voice Command] Raw transcript:', transcript);
 
         // Show transcript immediately - don't block UI
@@ -2543,10 +2618,16 @@ const KrushFlow = {
             if (!parsed.success) {
                 // Queue unmatched item - NEVER stop counting
                 console.log('[Voice Command] Queueing unmatched:', transcript);
+
+                // Create object URL for audio playback if available
+                const audioUrl = audioBlob ? URL.createObjectURL(audioBlob) : null;
+
                 this.unmatchedQueue.push({
                     transcript: transcript,
                     timestamp: new Date().toISOString(),
-                    error: parsed.error
+                    error: parsed.error,
+                    audioUrl: audioUrl,
+                    audioBlob: audioBlob
                 });
 
                 document.getElementById('count-parsed').textContent = '⚠️ Queued';
@@ -2570,10 +2651,14 @@ const KrushFlow = {
         } catch (error) {
             console.error('[Voice Command] Error:', error);
             // Queue as unmatched - continue counting
+            const audioUrl = audioBlob ? URL.createObjectURL(audioBlob) : null;
+
             this.unmatchedQueue.push({
                 transcript: transcript,
                 timestamp: new Date().toISOString(),
-                error: 'Processing failed'
+                error: 'Processing failed',
+                audioUrl: audioUrl,
+                audioBlob: audioBlob
             });
             document.getElementById('count-parsed').textContent = '⚠️ Queued';
             this.updateUnmatchedUI();
@@ -2855,11 +2940,22 @@ const KrushFlow = {
             list.innerHTML = this.unmatchedQueue.map((item, idx) => {
                 const time = new Date(item.timestamp).toLocaleTimeString();
                 return `
-                    <li>
-                        <div class="unmatched-transcript">"${this.escapeHtml(item.transcript)}"</div>
-                        <div class="unmatched-time">${time} - ${item.error || 'Could not match'}</div>
-                        <div class="unmatched-actions">
-                            <button class="btn-small" onclick="KrushFlow.removeUnmatched(${idx})">Remove</button>
+                    <li class="unmapped-item">
+                        <div class="unmapped-header">
+                            <div class="unmatched-time">${time} - ${item.error || 'Could not match'}</div>
+                            ${item.audioUrl ? `<button class="btn-small" onclick="KrushFlow.playUnmatchedAudio(${idx})" title="Play audio">🔊 Play</button>` : ''}
+                        </div>
+                        <div class="unmapped-transcript-edit">
+                            <input type="text"
+                                   id="unmatched-transcript-${idx}"
+                                   class="transcript-input"
+                                   value="${this.escapeHtml(item.transcript)}"
+                                   placeholder="Edit transcript...">
+                        </div>
+                        <div class="unmapped-actions">
+                            <button class="btn-small btn-primary" onclick="KrushFlow.remapUnmatched(${idx})" title="Try mapping with edited transcript">✓ Remap</button>
+                            ${item.audioUrl ? `<button class="btn-small" onclick="KrushFlow.rerecordUnmatched(${idx})" title="Record new audio">🎤 Re-record</button>` : ''}
+                            <button class="btn-small btn-danger" onclick="KrushFlow.removeUnmatched(${idx})" title="Remove from queue">✕ Remove</button>
                         </div>
                     </li>
                 `;
@@ -2886,9 +2982,198 @@ const KrushFlow = {
         if (this.unmatchedQueue.length === 0) return;
 
         if (confirm(`Clear all ${this.unmatchedQueue.length} unmatched items?`)) {
+            // Revoke audio URLs to free memory
+            this.unmatchedQueue.forEach(item => {
+                if (item.audioUrl) {
+                    URL.revokeObjectURL(item.audioUrl);
+                }
+            });
             this.unmatchedQueue = [];
             this.updateUnmatchedUI();
             this.closeUnmatchedReview();
+        }
+    },
+
+    // Play audio for unmatched item
+    playUnmatchedAudio: function(index) {
+        const item = this.unmatchedQueue[index];
+        if (!item || !item.audioUrl) {
+            alert('Audio not available for this item');
+            return;
+        }
+
+        try {
+            const audio = new Audio(item.audioUrl);
+            audio.play().catch(err => {
+                console.error('[Audio] Playback error:', err);
+                alert('Failed to play audio');
+            });
+        } catch (error) {
+            console.error('[Audio] Playback error:', error);
+            alert('Failed to play audio');
+        }
+    },
+
+    // Remap unmatched item with edited transcript
+    remapUnmatched: async function(index) {
+        const item = this.unmatchedQueue[index];
+        if (!item) return;
+
+        // Get edited transcript from input
+        const inputEl = document.getElementById(`unmatched-transcript-${index}`);
+        const editedTranscript = inputEl.value.trim();
+
+        if (!editedTranscript) {
+            alert('Please enter a transcript');
+            return;
+        }
+
+        try {
+            // Try to parse and apply the edited command
+            console.log('[Remap] Attempting to remap:', editedTranscript);
+
+            const parsed = await this.parseVoiceCommand(editedTranscript);
+
+            if (parsed.success) {
+                // Apply the mutation
+                this.applyCountMutation(parsed);
+
+                // Remove from unmatched queue
+                if (item.audioUrl) {
+                    URL.revokeObjectURL(item.audioUrl);
+                }
+                this.unmatchedQueue.splice(index, 1);
+                this.updateUnmatchedUI();
+
+                // Refresh the modal
+                this.showUnmatchedReview();
+
+                // Show success feedback
+                alert(`✓ Successfully mapped: ${parsed.operation} ${parsed.quantity} ${parsed.item}`);
+            } else {
+                // Still didn't match
+                alert(`⚠️ Still could not match: ${parsed.error}\n\nTry editing the transcript or re-recording.`);
+            }
+        } catch (error) {
+            console.error('[Remap] Error:', error);
+            alert('Failed to remap item');
+        }
+    },
+
+    // Re-record audio for unmatched item
+    rerecordUnmatched: async function(index) {
+        const item = this.unmatchedQueue[index];
+        if (!item) return;
+
+        const confirmed = confirm('Tap OK, then speak clearly when recording starts.\n\nThe new recording will replace this unmapped item.');
+        if (!confirmed) return;
+
+        try {
+            // Request microphone access
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+            // Get supported MIME type
+            const mimeType = this.getSupportedMimeType();
+            const options = mimeType ? { mimeType } : {};
+            const mediaRecorder = new MediaRecorder(stream, options);
+
+            const audioChunks = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunks, { type: mimeType || 'audio/webm' });
+
+                console.log('[Re-record] Sending new audio to OpenAI:', audioBlob.size, 'bytes');
+
+                try {
+                    // Transcribe new audio
+                    const formData = new FormData();
+                    formData.append('audio', audioBlob, 'audio.webm');
+
+                    const response = await fetch('/audio/transcribe-live-count', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Transcription failed');
+                    }
+
+                    const result = await response.json();
+
+                    if (result.success && result.transcript) {
+                        const transcript = result.transcript.trim();
+                        console.log('[Re-record] New transcript:', transcript);
+
+                        // Try to parse the new command
+                        const parsed = await this.parseVoiceCommand(transcript);
+
+                        if (parsed.success) {
+                            // Success! Apply the mutation
+                            this.applyCountMutation(parsed);
+
+                            // Remove from unmatched queue
+                            if (item.audioUrl) {
+                                URL.revokeObjectURL(item.audioUrl);
+                            }
+                            this.unmatchedQueue.splice(index, 1);
+                            this.updateUnmatchedUI();
+
+                            // Refresh the modal
+                            this.showUnmatchedReview();
+
+                            alert(`✓ Successfully mapped: ${parsed.operation} ${parsed.quantity} ${parsed.item}`);
+                        } else {
+                            // Still didn't match - update the unmapped item with new audio/transcript
+                            if (item.audioUrl) {
+                                URL.revokeObjectURL(item.audioUrl);
+                            }
+
+                            const newAudioUrl = URL.createObjectURL(audioBlob);
+                            this.unmatchedQueue[index] = {
+                                transcript: transcript,
+                                timestamp: new Date().toISOString(),
+                                error: parsed.error,
+                                audioUrl: newAudioUrl,
+                                audioBlob: audioBlob
+                            };
+
+                            // Refresh the modal
+                            this.showUnmatchedReview();
+
+                            alert(`⚠️ Still could not match: ${parsed.error}\n\nTranscript updated to: "${transcript}"\n\nYou can try editing the transcript or record again.`);
+                        }
+                    } else {
+                        alert('No speech detected. Please try again.');
+                    }
+                } catch (error) {
+                    console.error('[Re-record] Transcription error:', error);
+                    alert('Transcription failed. Please try again.');
+                } finally {
+                    // Stop media stream
+                    stream.getTracks().forEach(track => track.stop());
+                }
+            };
+
+            // Start recording
+            mediaRecorder.start();
+            alert('🔴 Recording... (3 seconds)\n\nSpeak now!');
+
+            // Auto-stop after 3 seconds
+            setTimeout(() => {
+                if (mediaRecorder.state === 'recording') {
+                    mediaRecorder.stop();
+                }
+            }, 3000);
+
+        } catch (error) {
+            console.error('[Re-record] Failed to start recording:', error);
+            alert('Could not access microphone. Please grant permission and try again.');
         }
     },
 
