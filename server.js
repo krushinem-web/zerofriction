@@ -6,11 +6,37 @@ const OpenAI = require('openai');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
+const http = require('http');
 
 const app = express();
 const upload = multer({ limits: { fileSize: 8 * 1024 * 1024 } });
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Create keep-alive HTTPS agent for OpenAI connections
+const httpsAgent = new https.Agent({
+    keepAlive: true,
+    keepAliveMsecs: 30000, // 30 seconds
+    maxSockets: 10,
+    maxFreeSockets: 5,
+    timeout: 60000, // 60 second socket timeout
+    scheduling: 'lifo' // Reuse most recently used sockets
+});
+
+const httpAgent = new http.Agent({
+    keepAlive: true,
+    keepAliveMsecs: 30000,
+    maxSockets: 10,
+    maxFreeSockets: 5,
+    timeout: 60000
+});
+
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+    httpAgent: httpsAgent, // Use keep-alive agent
+    timeout: 60000, // 60 second request timeout
+    maxRetries: 0 // We handle retries ourselves
+});
 
 // OpenAI Request Queue - prevent simultaneous calls that cause ECONNRESET
 class RequestQueue {
@@ -1039,32 +1065,31 @@ app.post('/live-count/save', express.json(), async (req, res) => {
 
 // Audio transcription for Live Count (streaming enabled)
 app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res) => {
-    console.log('🎤 HIT /audio/transcribe-live-count', new Date().toISOString());
+    const requestId = uuidv4().substring(0, 8);
+    const startTime = Date.now();
+
+    console.log(`🎤 [${requestId}] HIT /audio/transcribe-live-count at ${new Date().toISOString()}`);
 
     try {
         if (!req.file) {
-            console.log('❌ No audio file in request');
+            console.log(`❌ [${requestId}] No audio file in request`);
             return res.status(400).json({ error: 'No audio file provided' });
         }
 
-        console.log('📊 Audio details:', {
-            size: req.file.size + ' bytes',
-            mimetype: req.file.mimetype,
-            originalname: req.file.originalname,
-            fieldname: req.file.fieldname
-        });
+        console.log(`📊 [${requestId}] Audio: ${req.file.size} bytes, ${req.file.mimetype}`);
 
         // Validate minimum audio size (reject tiny/empty files that cause ECONNRESET)
         const MIN_AUDIO_SIZE = 2000; // 2KB minimum (about 0.1 seconds of audio)
         if (req.file.size < MIN_AUDIO_SIZE) {
-            console.log('⚠️  Audio too small, rejected:', req.file.size, 'bytes (minimum:', MIN_AUDIO_SIZE, 'bytes)');
+            console.log(`⚠️  [${requestId}] Rejected: ${req.file.size} bytes < ${MIN_AUDIO_SIZE} bytes minimum`);
             return res.json({
                 success: false,
                 error: 'Audio file too short - please speak for at least 1 second'
             });
         }
 
-        console.log('✅ Audio size valid, proceeding to OpenAI transcription...');
+        // Fully buffer the uploaded file (already in req.file.buffer via multer)
+        console.log(`✅ [${requestId}] Audio buffered and validated`);
 
         // Create a File object from buffer for OpenAI SDK
         const audioFile = new File([req.file.buffer], req.file.originalname || 'audio.webm', {
@@ -1072,40 +1097,53 @@ app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res
         });
 
         // Queue OpenAI API call to prevent simultaneous requests that cause ECONNRESET
-        console.log('📥 Queuing OpenAI transcription request...');
-        console.log('📝 Model: gpt-4o-mini-transcribe');
+        console.log(`📥 [${requestId}] Queuing for OpenAI (model: gpt-4o-mini-transcribe)`);
 
         const transcription = await openaiQueue.add(async () => {
-            console.log('🔄 Processing from queue - Calling OpenAI API');
+            const queueStartTime = Date.now();
+            console.log(`🔄 [${requestId}] Start OpenAI call (queued ${queueStartTime - startTime}ms)`);
 
             let result;
             let retryCount = 0;
-            const maxRetries = 2;
+            const maxRetries = 3;
 
             while (retryCount <= maxRetries) {
+                const attemptStart = Date.now();
                 try {
                     result = await openai.audio.transcriptions.create({
                         file: audioFile,
                         model: 'gpt-4o-mini-transcribe',
                         response_format: 'text',
-                        timeout: 30000, // 30 second timeout
                     });
+                    const attemptDuration = Date.now() - attemptStart;
+                    console.log(`✅ [${requestId}] OpenAI success (${attemptDuration}ms, attempt ${retryCount + 1})`);
                     break; // Success - exit retry loop
                 } catch (retryError) {
-                    retryCount++;
-                    if (retryCount > maxRetries) {
-                        throw retryError; // Give up after max retries
+                    const attemptDuration = Date.now() - attemptStart;
+                    const isNetworkError = retryError.code === 'ECONNRESET' ||
+                                          retryError.code === 'ETIMEDOUT' ||
+                                          retryError.code === 'ENOTFOUND' ||
+                                          (retryError.status >= 500 && retryError.status < 600);
+
+                    if (!isNetworkError || retryCount >= maxRetries) {
+                        console.log(`❌ [${requestId}] Failed after ${attemptDuration}ms: ${retryError.message} (code: ${retryError.code}, attempt ${retryCount + 1})`);
+                        throw retryError; // Non-network error or max retries reached
                     }
-                    console.log(`⚠️  Retry ${retryCount}/${maxRetries} after error...`);
-                    await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
+
+                    retryCount++;
+                    // Exponential backoff with jitter: base * 2^retry + random(0-1000ms)
+                    const backoff = (1000 * Math.pow(2, retryCount - 1)) + Math.floor(Math.random() * 1000);
+                    console.log(`⚠️  [${requestId}] Retry ${retryCount}/${maxRetries} after ${attemptDuration}ms - ${retryError.code || retryError.message} - waiting ${backoff}ms`);
+                    await new Promise(resolve => setTimeout(resolve, backoff));
                 }
             }
 
             return result;
         });
 
-        console.log('✅ OpenAI Response received');
-        console.log('📄 Transcript:', transcription);
+        const totalDuration = Date.now() - startTime;
+        console.log(`✅ [${requestId}] Complete: ${totalDuration}ms total`);
+        console.log(`📄 [${requestId}] Transcript: "${transcription}"`);
 
         res.json({
             success: true,
@@ -1113,44 +1151,11 @@ app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res
         });
 
     } catch (error) {
-        console.error('❌ OpenAI API Error Details:');
-        console.error('  Error type:', error.constructor.name);
-        console.error('  Error message:', error.message);
-        console.error('  Error code:', error.code);
-        console.error('  Error cause:', error.cause);
-        console.error('  Full error:', error);
-
-        // Fallback to higher accuracy model if mini fails
-        if (error.message && error.message.includes('transcribe')) {
-            try {
-                console.log('[Audio Transcribe Live Count] Falling back to gpt-4o-transcribe');
-
-                const audioFile = new File([req.file.buffer], req.file.originalname || 'audio.webm', {
-                    type: req.file.mimetype || 'audio/webm'
-                });
-
-                const transcription = await openai.audio.transcriptions.create({
-                    file: audioFile,
-                    model: 'gpt-4o-transcribe',
-                    response_format: 'text',
-                });
-
-                console.log('[Audio Transcribe Live Count] Fallback transcript:', transcription);
-
-                return res.json({
-                    success: true,
-                    transcript: transcription,
-                    fallback: true
-                });
-
-            } catch (fallbackError) {
-                console.error('[Audio Transcribe Live Count] Fallback error:', fallbackError);
-                return res.status(500).json({
-                    success: false,
-                    error: fallbackError.message
-                });
-            }
-        }
+        const totalDuration = Date.now() - startTime;
+        console.error(`❌ [${requestId}] FAILED after ${totalDuration}ms`);
+        console.error(`   Error: ${error.message}`);
+        console.error(`   Code: ${error.code}`);
+        console.error(`   Type: ${error.constructor.name}`);
 
         res.status(500).json({
             success: false,
@@ -1161,32 +1166,31 @@ app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res
 
 // Audio transcription for Voice Mapping (streaming disabled)
 app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) => {
-    console.log('🗣️  HIT /audio/transcribe-mapping', new Date().toISOString());
+    const requestId = uuidv4().substring(0, 8);
+    const startTime = Date.now();
+
+    console.log(`🗣️  [${requestId}] HIT /audio/transcribe-mapping at ${new Date().toISOString()}`);
 
     try {
         if (!req.file) {
-            console.log('❌ No audio file in request');
+            console.log(`❌ [${requestId}] No audio file in request`);
             return res.status(400).json({ error: 'No audio file provided' });
         }
 
-        console.log('📊 Audio details:', {
-            size: req.file.size + ' bytes',
-            mimetype: req.file.mimetype,
-            originalname: req.file.originalname,
-            fieldname: req.file.fieldname
-        });
+        console.log(`📊 [${requestId}] Audio: ${req.file.size} bytes, ${req.file.mimetype}`);
 
         // Validate minimum audio size (reject tiny/empty files that cause ECONNRESET)
         const MIN_AUDIO_SIZE = 2000; // 2KB minimum (about 0.1 seconds of audio)
         if (req.file.size < MIN_AUDIO_SIZE) {
-            console.log('⚠️  Audio too small, rejected:', req.file.size, 'bytes (minimum:', MIN_AUDIO_SIZE, 'bytes)');
+            console.log(`⚠️  [${requestId}] Rejected: ${req.file.size} bytes < ${MIN_AUDIO_SIZE} bytes minimum`);
             return res.json({
                 success: false,
                 error: 'Audio file too short - please speak for at least 1 second'
             });
         }
 
-        console.log('✅ Audio size valid, proceeding to OpenAI transcription...');
+        // Fully buffer the uploaded file (already in req.file.buffer via multer)
+        console.log(`✅ [${requestId}] Audio buffered and validated`);
 
         // Create a File object from buffer for OpenAI SDK
         const audioFile = new File([req.file.buffer], req.file.originalname || 'audio.webm', {
@@ -1194,40 +1198,53 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
         });
 
         // Queue OpenAI API call to prevent simultaneous requests that cause ECONNRESET
-        console.log('📥 Queuing OpenAI transcription request (Voice Mapping)...');
-        console.log('📝 Model: gpt-4o-mini-transcribe');
+        console.log(`📥 [${requestId}] Queuing for OpenAI (model: gpt-4o-mini-transcribe, Voice Mapping)`);
 
         const transcription = await openaiQueue.add(async () => {
-            console.log('🔄 Processing from queue - Calling OpenAI API (Voice Mapping)');
+            const queueStartTime = Date.now();
+            console.log(`🔄 [${requestId}] Start OpenAI call (queued ${queueStartTime - startTime}ms, Voice Mapping)`);
 
             let result;
             let retryCount = 0;
-            const maxRetries = 2;
+            const maxRetries = 3;
 
             while (retryCount <= maxRetries) {
+                const attemptStart = Date.now();
                 try {
                     result = await openai.audio.transcriptions.create({
                         file: audioFile,
                         model: 'gpt-4o-mini-transcribe',
                         response_format: 'text',
-                        timeout: 30000, // 30 second timeout
                     });
+                    const attemptDuration = Date.now() - attemptStart;
+                    console.log(`✅ [${requestId}] OpenAI success (${attemptDuration}ms, attempt ${retryCount + 1}, Voice Mapping)`);
                     break; // Success - exit retry loop
                 } catch (retryError) {
-                    retryCount++;
-                    if (retryCount > maxRetries) {
-                        throw retryError; // Give up after max retries
+                    const attemptDuration = Date.now() - attemptStart;
+                    const isNetworkError = retryError.code === 'ECONNRESET' ||
+                                          retryError.code === 'ETIMEDOUT' ||
+                                          retryError.code === 'ENOTFOUND' ||
+                                          (retryError.status >= 500 && retryError.status < 600);
+
+                    if (!isNetworkError || retryCount >= maxRetries) {
+                        console.log(`❌ [${requestId}] Failed after ${attemptDuration}ms: ${retryError.message} (code: ${retryError.code}, attempt ${retryCount + 1}, Voice Mapping)`);
+                        throw retryError; // Non-network error or max retries reached
                     }
-                    console.log(`⚠️  Retry ${retryCount}/${maxRetries} after error (Voice Mapping)...`);
-                    await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
+
+                    retryCount++;
+                    // Exponential backoff with jitter: base * 2^retry + random(0-1000ms)
+                    const backoff = (1000 * Math.pow(2, retryCount - 1)) + Math.floor(Math.random() * 1000);
+                    console.log(`⚠️  [${requestId}] Retry ${retryCount}/${maxRetries} after ${attemptDuration}ms - ${retryError.code || retryError.message} - waiting ${backoff}ms (Voice Mapping)`);
+                    await new Promise(resolve => setTimeout(resolve, backoff));
                 }
             }
 
             return result;
         });
 
-        console.log('✅ OpenAI Response received');
-        console.log('📄 Transcript:', transcription);
+        const totalDuration = Date.now() - startTime;
+        console.log(`✅ [${requestId}] Complete: ${totalDuration}ms total (Voice Mapping)`);
+        console.log(`📄 [${requestId}] Transcript: "${transcription}"`);
 
         res.json({
             success: true,
@@ -1235,12 +1252,11 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
         });
 
     } catch (error) {
-        console.error('❌ OpenAI API Error Details (Voice Mapping):');
-        console.error('  Error type:', error.constructor.name);
-        console.error('  Error message:', error.message);
-        console.error('  Error code:', error.code);
-        console.error('  Error cause:', error.cause);
-        console.error('  Full error:', error);
+        const totalDuration = Date.now() - startTime;
+        console.error(`❌ [${requestId}] FAILED after ${totalDuration}ms (Voice Mapping)`);
+        console.error(`   Error: ${error.message}`);
+        console.error(`   Code: ${error.code}`);
+        console.error(`   Type: ${error.constructor.name}`);
 
         res.status(500).json({
             success: false,
