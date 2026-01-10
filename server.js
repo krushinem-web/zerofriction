@@ -3,11 +3,15 @@ const multer = require('multer');
 const speech = require('@google-cloud/speech');
 const vision = require('@google-cloud/vision');
 const Anthropic = require('@anthropic-ai/sdk');
+const OpenAI = require('openai');
 const { v4: uuidv4 } = require('uuid');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const upload = multer({ limits: { fileSize: 8 * 1024 * 1024 } });
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Configure Vision client - Railway uses automatic auth, local uses GOOGLE_CREDS
 let visionClient;
@@ -994,6 +998,119 @@ app.post('/live-count/save', express.json(), async (req, res) => {
     } catch (error) {
         console.error('[Live Count Manual Save] Error:', error);
         res.status(500).json({ error: error.message });
+    }
+});
+
+// ============================================
+// OPENAI AUDIO TRANSCRIPTION ENDPOINTS
+// ============================================
+
+// Audio transcription for Live Count (streaming enabled)
+app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No audio file provided' });
+        }
+
+        console.log('[Audio Transcribe Live Count] Received audio:', req.file.size, 'bytes');
+
+        // Create a File object from buffer for OpenAI SDK
+        const audioFile = new File([req.file.buffer], req.file.originalname || 'audio.webm', {
+            type: req.file.mimetype || 'audio/webm'
+        });
+
+        // Call OpenAI Audio Transcription API
+        const transcription = await openai.audio.transcriptions.create({
+            file: audioFile,
+            model: 'gpt-4o-mini-transcribe',
+            response_format: 'text',
+            // Streaming enabled for real-time feedback (handled by OpenAI SDK)
+        });
+
+        console.log('[Audio Transcribe Live Count] Transcript:', transcription);
+
+        res.json({
+            success: true,
+            transcript: transcription
+        });
+
+    } catch (error) {
+        console.error('[Audio Transcribe Live Count] Error:', error);
+
+        // Fallback to higher accuracy model if mini fails
+        if (error.message && error.message.includes('transcribe')) {
+            try {
+                console.log('[Audio Transcribe Live Count] Falling back to gpt-4o-transcribe');
+
+                const audioFile = new File([req.file.buffer], req.file.originalname || 'audio.webm', {
+                    type: req.file.mimetype || 'audio/webm'
+                });
+
+                const transcription = await openai.audio.transcriptions.create({
+                    file: audioFile,
+                    model: 'gpt-4o-transcribe',
+                    response_format: 'text',
+                });
+
+                console.log('[Audio Transcribe Live Count] Fallback transcript:', transcription);
+
+                return res.json({
+                    success: true,
+                    transcript: transcription,
+                    fallback: true
+                });
+
+            } catch (fallbackError) {
+                console.error('[Audio Transcribe Live Count] Fallback error:', fallbackError);
+                return res.status(500).json({
+                    success: false,
+                    error: fallbackError.message
+                });
+            }
+        }
+
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
+// Audio transcription for Voice Mapping (streaming disabled)
+app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No audio file provided' });
+        }
+
+        console.log('[Audio Transcribe Mapping] Received audio:', req.file.size, 'bytes');
+
+        // Create a File object from buffer for OpenAI SDK
+        const audioFile = new File([req.file.buffer], req.file.originalname || 'audio.webm', {
+            type: req.file.mimetype || 'audio/webm'
+        });
+
+        // Call OpenAI Audio Transcription API
+        const transcription = await openai.audio.transcriptions.create({
+            file: audioFile,
+            model: 'gpt-4o-mini-transcribe',
+            response_format: 'text',
+            // Streaming disabled for mapping mode
+        });
+
+        console.log('[Audio Transcribe Mapping] Transcript:', transcription);
+
+        res.json({
+            success: true,
+            transcript: transcription
+        });
+
+    } catch (error) {
+        console.error('[Audio Transcribe Mapping] Error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
     }
 });
 
