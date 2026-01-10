@@ -1037,16 +1037,32 @@ app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res
             type: req.file.mimetype || 'audio/webm'
         });
 
-        // Call OpenAI Audio Transcription API
+        // Call OpenAI Audio Transcription API with retry logic
         console.log('🔄 Calling OpenAI API:', 'https://api.openai.com/v1/audio/transcriptions');
         console.log('📝 Model: gpt-4o-mini-transcribe');
 
-        const transcription = await openai.audio.transcriptions.create({
-            file: audioFile,
-            model: 'gpt-4o-mini-transcribe',
-            response_format: 'text',
-            // Streaming enabled for real-time feedback (handled by OpenAI SDK)
-        });
+        let transcription;
+        let retryCount = 0;
+        const maxRetries = 2;
+
+        while (retryCount <= maxRetries) {
+            try {
+                transcription = await openai.audio.transcriptions.create({
+                    file: audioFile,
+                    model: 'gpt-4o-mini-transcribe',
+                    response_format: 'text',
+                    timeout: 30000, // 30 second timeout
+                });
+                break; // Success - exit retry loop
+            } catch (retryError) {
+                retryCount++;
+                if (retryCount > maxRetries) {
+                    throw retryError; // Give up after max retries
+                }
+                console.log(`⚠️  Retry ${retryCount}/${maxRetries} after ECONNRESET...`);
+                await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
+            }
+        }
 
         console.log('✅ OpenAI Response received');
         console.log('📄 Transcript:', transcription);
@@ -1137,16 +1153,32 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
             type: req.file.mimetype || 'audio/webm'
         });
 
-        // Call OpenAI Audio Transcription API
+        // Call OpenAI Audio Transcription API with retry logic
         console.log('🔄 Calling OpenAI API:', 'https://api.openai.com/v1/audio/transcriptions');
         console.log('📝 Model: gpt-4o-mini-transcribe (mapping mode)');
 
-        const transcription = await openai.audio.transcriptions.create({
-            file: audioFile,
-            model: 'gpt-4o-mini-transcribe',
-            response_format: 'text',
-            // Streaming disabled for mapping mode
-        });
+        let transcription;
+        let retryCount = 0;
+        const maxRetries = 2;
+
+        while (retryCount <= maxRetries) {
+            try {
+                transcription = await openai.audio.transcriptions.create({
+                    file: audioFile,
+                    model: 'gpt-4o-mini-transcribe',
+                    response_format: 'text',
+                    timeout: 30000, // 30 second timeout
+                });
+                break; // Success - exit retry loop
+            } catch (retryError) {
+                retryCount++;
+                if (retryCount > maxRetries) {
+                    throw retryError; // Give up after max retries
+                }
+                console.log(`⚠️  Retry ${retryCount}/${maxRetries} after error (Voice Mapping)...`);
+                await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
+            }
+        }
 
         console.log('✅ OpenAI Response received');
         console.log('📄 Transcript:', transcription);
