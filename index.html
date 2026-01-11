@@ -3634,50 +3634,43 @@ const KrushFlow = {
                             const current = result.protocolComparison.return_current_installed;
                             const newProto = result.protocolComparison.return_new_googleStt_plus_chatgpt_ambiguity;
                             const flags = result.protocolComparison.comparisonFlags;
+                            const alternatives = result.alternatives || [];
 
                             let statusHTML = `<div style="font-size: 0.9em;">`;
-                            statusHTML += `<div><strong>Heard:</strong> "${transcript}"</div>`;
+                            statusHTML += `<div style="margin-bottom: 0.75rem;"><strong>Training alias for:</strong> ${this.escapeHtml(masterItem)}</div>`;
 
-                            // Show both protocol results side-by-side
-                            statusHTML += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem;">`;
+                            // Show both protocol TRANSCRIPTIONS side-by-side
+                            statusHTML += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.5rem;">`;
 
-                            // Current Protocol (Left)
-                            statusHTML += `<div style="border-left: 3px solid #3b82f6; padding-left: 0.5rem;">`;
-                            statusHTML += `<div style="font-weight: bold; color: #3b82f6;">Current</div>`;
-                            statusHTML += `<div>Item: ${current.resolution.canonicalItem}</div>`;
-                            statusHTML += `<div>Op: ${current.resolution.operation || 'null'}</div>`;
-                            statusHTML += `<div>Val: ${current.resolution.value !== null ? current.resolution.value : 'null'}</div>`;
-                            statusHTML += `<div>Conf: ${(current.resolution.confidence * 100).toFixed(0)}%</div>`;
-                            if (current.resolution.needsConfirmation) {
-                                statusHTML += `<div style="color: #f59e0b;">⚠️ Needs confirm</div>`;
-                            }
+                            // Current Protocol (Left) - Shows PRIMARY transcript
+                            statusHTML += `<div style="border: 2px solid #3b82f6; padding: 0.75rem; border-radius: 6px; background: rgba(59, 130, 246, 0.05);">`;
+                            statusHTML += `<div style="font-weight: bold; color: #3b82f6; margin-bottom: 0.5rem;">CURRENT PROTOCOL</div>`;
+                            statusHTML += `<div style="background: white; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.5rem; border: 1px solid #e5e7eb;">`;
+                            statusHTML += `<div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">What it heard:</div>`;
+                            statusHTML += `<div style="font-weight: 600; color: #1f2937;">"${this.escapeHtml(current.inputUsed.transcript)}"</div>`;
+                            statusHTML += `</div>`;
+                            statusHTML += `<div style="font-size: 0.85rem; color: #6b7280;">Maps to: <strong>${current.resolution.canonicalItem}</strong></div>`;
                             statusHTML += `</div>`;
 
-                            // New Protocol (Right)
-                            statusHTML += `<div style="border-left: 3px solid #10b981; padding-left: 0.5rem;">`;
-                            statusHTML += `<div style="font-weight: bold; color: #10b981;">New (Google STT)</div>`;
-                            statusHTML += `<div>Item: ${newProto.resolution.canonicalItem}</div>`;
-                            statusHTML += `<div>Op: ${newProto.resolution.operation || 'null'}</div>`;
-                            statusHTML += `<div>Val: ${newProto.resolution.value !== null ? newProto.resolution.value : 'null'}</div>`;
-                            statusHTML += `<div>Conf: ${(newProto.resolution.confidence * 100).toFixed(0)}%</div>`;
-                            if (newProto.resolution.needsConfirmation) {
-                                statusHTML += `<div style="color: #f59e0b;">⚠️ Needs confirm</div>`;
+                            // New Protocol (Right) - Shows ALTERNATIVES if available
+                            statusHTML += `<div style="border: 2px solid #10b981; padding: 0.75rem; border-radius: 6px; background: rgba(16, 185, 129, 0.05);">`;
+                            statusHTML += `<div style="font-weight: bold; color: #10b981; margin-bottom: 0.5rem;">NEW PROTOCOL (Google STT)</div>`;
+                            statusHTML += `<div style="background: white; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.5rem; border: 1px solid #e5e7eb;">`;
+                            statusHTML += `<div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">What it heard:</div>`;
+                            statusHTML += `<div style="font-weight: 600; color: #1f2937;">"${this.escapeHtml(newProto.inputUsed.transcript)}"</div>`;
+                            if (alternatives.length > 0) {
+                                statusHTML += `<div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #e5e7eb;">Alternatives:</div>`;
+                                statusHTML += `<div style="font-size: 0.85rem; color: #374151; margin-top: 0.25rem;">`;
+                                alternatives.forEach((alt, idx) => {
+                                    statusHTML += `<div>• "${this.escapeHtml(alt)}"</div>`;
+                                });
+                                statusHTML += `</div>`;
                             }
+                            statusHTML += `</div>`;
+                            statusHTML += `<div style="font-size: 0.85rem; color: #6b7280;">Maps to: <strong>${newProto.resolution.canonicalItem}</strong></div>`;
                             statusHTML += `</div>`;
 
                             statusHTML += `</div>`; // End grid
-
-                            // Show differences
-                            if (flags.differentCanonicalItem || flags.differentOperation || flags.differentValue) {
-                                statusHTML += `<div style="margin-top: 0.5rem; padding: 0.25rem; background: #fee2e2; border-radius: 4px;">`;
-                                statusHTML += `<strong>⚠️ Protocols differ:</strong> `;
-                                const diffs = [];
-                                if (flags.differentCanonicalItem) diffs.push('Item');
-                                if (flags.differentOperation) diffs.push('Operation');
-                                if (flags.differentValue) diffs.push('Value');
-                                statusHTML += diffs.join(', ');
-                                statusHTML += `</div>`;
-                            }
 
                             statusHTML += `</div>`;
                             statusEl.innerHTML = statusHTML;
