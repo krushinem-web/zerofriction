@@ -2648,25 +2648,19 @@ const KrushFlow = {
             // Collect audio data continuously
             this.mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
+                    console.log(`[Turn Clipping] ondataavailable: ${event.data.size} bytes, state: ${this.clipState}, isCapturing: ${this.isCapturingClip}`);
                     this.audioChunks.push(event.data);
 
-                    // If we're in a clip (not IDLE_LISTENING), add to clip buffer
-                    // IMPORTANT: Also allow during FINALIZING if requestDataPending flag is set (for final chunk)
-                    if (this.clipState !== this.CLIP_STATE.IDLE_LISTENING &&
-                        (this.clipState !== this.CLIP_STATE.FINALIZING || this.requestDataPending)) {
+                    // If we're capturing a clip, add to clip buffer
+                    if (this.isCapturingClip) {
                         this.clipBuffer.push(event.data);
-
-                        // Clear flag after capturing the final chunk
-                        if (this.requestDataPending) {
-                            console.log(`[Turn Clipping] Captured final chunk via requestData(): ${event.data.size} bytes`);
-                            this.requestDataPending = false;
-                        }
+                        console.log(`[Turn Clipping] Added chunk to clipBuffer (now ${this.clipBuffer.length} chunks, total ${this.clipBuffer.reduce((sum, c) => sum + c.size, 0)} bytes)`);
                     }
                 }
             };
 
-            // Start recording continuously (don't stop/start)
-            this.mediaRecorder.start(100); // Capture in 100ms chunks for responsiveness
+            // Start recording continuously WITHOUT timeslice (we'll use requestData() instead)
+            this.mediaRecorder.start();
             this.isListening = true;
             this.sessionClipCount = 0;
 
@@ -2676,7 +2670,7 @@ const KrushFlow = {
             this.silenceMs = 0;
             this.clipDurationMs = 0;
             this.clipBuffer = [];
-            this.requestDataPending = false;
+            this.isCapturingClip = false;
             this.lastVadCheckTime = performance.now();
             this.lastStateTransitionTime = performance.now();
 
@@ -2701,11 +2695,18 @@ const KrushFlow = {
     // Stop voice session
     stopVoiceSession: function() {
         this.isListening = false;
+        this.isCapturingClip = false;
 
         // Stop VAD check loop
         if (this.vadCheckInterval) {
             clearInterval(this.vadCheckInterval);
             this.vadCheckInterval = null;
+        }
+
+        // Stop clip data request interval
+        if (this.clipDataInterval) {
+            clearInterval(this.clipDataInterval);
+            this.clipDataInterval = null;
         }
 
         // Finalize any active clip before stopping
@@ -2861,13 +2862,29 @@ const KrushFlow = {
         this.silenceMs = 0;
         this.clipDurationMs = 0;
         this.clipBuffer = [];
+        this.isCapturingClip = true;
 
-        console.log('[Turn Clipping] New clip started');
+        console.log('[Turn Clipping] New clip started - requesting audio data');
+
+        // Start requesting data every 100ms for this clip
+        if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+            this.clipDataInterval = setInterval(() => {
+                if (this.isCapturingClip && this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+                    this.mediaRecorder.requestData();
+                }
+            }, 100);
+        }
     },
 
     // Finalize clip
     finalizeClip: async function() {
         const clipNumber = this.sessionClipCount + 1;
+
+        // Stop requesting data for this clip
+        if (this.clipDataInterval) {
+            clearInterval(this.clipDataInterval);
+            this.clipDataInterval = null;
+        }
 
         console.log(`[Turn Clipping] Finalizing clip ${clipNumber}:`);
         console.log(`  - speechActiveMs: ${this.speechActiveMs.toFixed(0)}ms`);
@@ -2880,6 +2897,7 @@ const KrushFlow = {
             console.log(`[Turn Clipping] Clip ${clipNumber} discarded: only ${this.speechActiveMs.toFixed(0)}ms of speech (min ${this.CLIP_MIN_SPEECH_MS}ms)`);
             this.addDebugLog(`🗑️ Clip ${clipNumber} Discarded`, `Only ${this.speechActiveMs.toFixed(0)}ms speech (min ${this.CLIP_MIN_SPEECH_MS}ms)`, 'warning');
             this.clipBuffer = [];
+            this.isCapturingClip = false;
             this.updateClipStateUI('Clip discarded (too short)');
 
             // Return to listening
@@ -2887,19 +2905,16 @@ const KrushFlow = {
             this.lastStateTransitionTime = performance.now();
             setTimeout(() => this.updateClipStateUI(), 1000);
         } else {
-            // CRITICAL FIX: Request data from MediaRecorder to flush any pending audio
-            // This ensures all audio data is properly finalized before we create the blob
+            // Request final chunk and wait for it
             if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
-                console.log(`[Turn Clipping] Calling requestData() to flush pending audio before creating blob`);
-                // Set flag to allow the final chunk to be added to clipBuffer even though state is FINALIZING
-                this.requestDataPending = true;
+                console.log(`[Turn Clipping] Requesting final chunk...`);
                 this.mediaRecorder.requestData();
             }
 
-            // Wait a brief moment for requestData() to trigger ondataavailable
-            await new Promise(resolve => setTimeout(resolve, 50));
+            // Wait for final chunk to arrive
+            await new Promise(resolve => setTimeout(resolve, 150));
 
-            console.log(`[Turn Clipping] After requestData() wait: clipBuffer has ${this.clipBuffer.length} chunks`);
+            console.log(`[Turn Clipping] After final requestData(): clipBuffer has ${this.clipBuffer.length} chunks, total ${this.clipBuffer.reduce((sum, c) => sum + c.size, 0)} bytes`);
 
             // Send to STT
             const audioBlob = new Blob(this.clipBuffer, { type: this.recordingMimeType || 'audio/webm' });
@@ -2915,7 +2930,8 @@ const KrushFlow = {
                 this.addDebugLog(`❌ Clip ${clipNumber} ZERO SIZE`, `Blob is 0 bytes - recording failed`, 'error');
                 this.updateClipStateUI(`❌ Recording failed (0 bytes)`);
 
-                // Return to listening
+                // Stop capturing and return to listening
+                this.isCapturingClip = false;
                 this.clipState = this.CLIP_STATE.IDLE_LISTENING;
                 this.lastStateTransitionTime = performance.now();
                 setTimeout(() => this.updateClipStateUI(), 2000);
@@ -2924,6 +2940,9 @@ const KrushFlow = {
 
             this.addDebugLog(`✅ Clip ${clipNumber} Ready`, `${audioBlob.size} bytes, ${this.speechActiveMs.toFixed(0)}ms speech`, 'success');
             this.updateClipStateUI(`Processing clip ${clipNumber}...`);
+
+            // Stop capturing this clip
+            this.isCapturingClip = false;
 
             // Send to STT
             await this.transcribeAudio(audioBlob);
