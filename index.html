@@ -1953,12 +1953,19 @@ const KrushFlow = {
             // Load GLOBAL aliases (used across all projects)
             console.log(`[Live Count] Loading GLOBAL aliases`);
             this.addDebugLog('📂 Project Loaded', projectName, 'success');
+            this.updateSaveStatus('Loading aliases...');
 
             try {
                 const aliasResponse = await fetch('/aliases');
                 console.log('[Live Count] Global alias response status:', aliasResponse.status, aliasResponse.statusText);
 
-                if (aliasResponse.ok) {
+                if (!aliasResponse.ok) {
+                    console.error('[Live Count] Alias fetch failed:', aliasResponse.status, aliasResponse.statusText);
+                    this.addDebugLog('❌ Alias Fetch Failed', `HTTP ${aliasResponse.status}: ${aliasResponse.statusText}`, 'error');
+                    this.updateSaveStatus(`⚠️ Alias load failed: ${aliasResponse.status}`);
+                    // Continue with empty aliases
+                    aliases = {};
+                } else {
                     const aliasData = await aliasResponse.json();
                     console.log('[Live Count] Global alias data received:', aliasData);
                     aliases = aliasData.aliases || {};
@@ -1968,18 +1975,20 @@ const KrushFlow = {
                     // Show in debug panel
                     const aliasCount = Object.keys(aliases).length;
                     if (aliasCount > 0) {
-                        this.addDebugLog('✅ Global Aliases Loaded', `${aliasCount} items with aliases: ${Object.keys(aliases).join(', ')}`, 'success');
-                        this.addDebugLog('📋 Full Alias Map', aliases, 'info');
+                        this.addDebugLog('✅ Global Aliases Loaded', `${aliasCount} items: ${Object.keys(aliases).join(', ')}`, 'success');
+                        this.addDebugLog('📋 Full Alias', aliases, 'info');
+                        this.updateSaveStatus(`✅ Loaded ${aliasCount} aliases`);
                     } else {
-                        this.addDebugLog('⚠️ No Aliases', 'No global aliases found. Create them in Voice Mapping.', 'warning');
+                        this.addDebugLog('⚠️ Zero Aliases', 'Alias file is empty. Create aliases in Voice Mapping first.', 'warning');
+                        this.updateSaveStatus('⚠️ No aliases - create in Voice Mapping');
                     }
-                } else {
-                    console.warn('[Live Count] Global alias response not OK:', aliasResponse.status);
-                    this.addDebugLog('⚠️ Alias Load Failed', `Server returned status ${aliasResponse.status}`, 'warning');
                 }
             } catch (error) {
                 console.error('[Live Count] Global aliases load error:', error);
                 this.addDebugLog('❌ Alias Load Error', error.message, 'error');
+                this.updateSaveStatus(`❌ Alias error: ${error.message}`);
+                // Continue with empty aliases
+                aliases = {};
             }
 
             // Set up Live Count state
@@ -2984,8 +2993,16 @@ const KrushFlow = {
                 }
             } else {
                 console.warn('[Transcribe] No success or transcript in result:', result);
-                this.updateClipStateUI(`❌ NO TRANSCRIPT RECEIVED`);
-                this.addDebugLog('❌ Transcription Failed', 'No transcript in response', 'error');
+                const errorMsg = result.error || 'No transcript in response';
+                this.updateClipStateUI(`❌ ${errorMsg}`);
+                this.addDebugLog('❌ Transcription Failed', errorMsg, 'error');
+
+                // Show clear message to user
+                const transcriptEl = document.getElementById('count-transcript');
+                if (transcriptEl) {
+                    transcriptEl.textContent = `Error: ${errorMsg}`;
+                    transcriptEl.style.color = '#ef4444';
+                }
             }
 
         } catch (error) {

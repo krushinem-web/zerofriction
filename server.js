@@ -1734,6 +1734,18 @@ app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res
         }
 
         const totalDuration = Date.now() - startTime;
+
+        // Check if we actually got a transcript
+        if (!transcript || transcript.trim() === '') {
+            console.log(`⚠️  [${requestId}] Complete but NO SPEECH DETECTED: ${totalDuration}ms total`);
+            return res.json({
+                success: false,
+                error: 'No speech detected - please speak louder or closer to microphone',
+                transcript: '',
+                alternatives: []
+            });
+        }
+
         console.log(`✅ [${requestId}] Complete: ${totalDuration}ms total`);
 
         res.json({
