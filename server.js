@@ -1551,38 +1551,37 @@ app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res
 
         const { transcript, alternatives } = googleSttResponse;
 
-        // If we have master list data, run protocol comparison
-        let protocolComparison = null;
+        // If we have master list data, generate 3-version Google STT comparison
+        let sttVersions = null;
         if (masterListCandidates && masterListCandidates.length > 0) {
-            console.log(`🔬 [${requestId}] Running side-by-side protocol comparison...`);
+            console.log(`🔬 [${requestId}] Generating 3 Google STT versions for Live Count...`);
 
             try {
                 const rawAudioMeta = {
                     sampleRate: 48000,
-                    durationMs: Math.round((req.file.size / 48000) * 1000), // Rough estimate
+                    durationMs: Math.round((req.file.size / 48000) * 1000),
                     vadPauseMs: null,
                     noiseLevel: null,
                     deviceHints: null
                 };
 
-                protocolComparison = compareProtocols(
+                // Use the first item from master list as target (Live Count doesn't have specific target item)
+                const targetItem = masterListCandidates[0] || 'UNMAPPED';
+
+                sttVersions = compareGoogleSttVersions(
                     transcript,
                     alternatives,
-                    masterListCandidates,
-                    aliasDictionary,
-                    recentContext,
+                    targetItem,
                     rawAudioMeta
                 );
 
-                console.log(`✅ [${requestId}] Protocol comparison complete`);
-
-                // Log comparison flags
-                if (protocolComparison.comparisonFlags) {
-                    console.log(`🔬 [${requestId}] Comparison: Different item=${protocolComparison.comparisonFlags.differentCanonicalItem}, Different op=${protocolComparison.comparisonFlags.differentOperation}`);
-                }
+                console.log(`✅ [${requestId}] Live Count 3-version comparison complete`);
+                console.log(`🔬 [${requestId}] Version 1: "${sttVersions.googleSttVersion1.transcript}"`);
+                console.log(`🔬 [${requestId}] Version 2: "${sttVersions.googleSttVersion2.transcript}"`);
+                console.log(`🔬 [${requestId}] Version 3: "${sttVersions.googleSttVersion3.transcript}"`);
 
             } catch (error) {
-                console.error(`⚠️  [${requestId}] Protocol comparison failed:`, error.message);
+                console.error(`⚠️  [${requestId}] Version comparison failed:`, error.message);
                 // Don't fail the whole request if comparison fails
             }
         }
@@ -1594,7 +1593,7 @@ app.post('/audio/transcribe-live-count', upload.single('audio'), async (req, res
             success: true,
             transcript: transcript,
             alternatives: alternatives,
-            protocolComparison: protocolComparison
+            sttVersions: sttVersions
         });
 
     } catch (error) {
@@ -1797,14 +1796,14 @@ app.listen(PORT, () => {
     console.log('  GOOGLE_CREDS:', process.env.GOOGLE_CREDS ? '✅ Set' : '⚠️  Not set (uses default auth)');
     console.log('');
     console.log('📍 Active Audio Routes:');
-    console.log('  POST /audio/transcribe-live-count → Google Cloud Speech + Side-by-Side Protocol Comparison');
+    console.log('  POST /audio/transcribe-live-count → Google STT 3-Version Comparison (Primary + 2 Alternatives)');
     console.log('  POST /audio/transcribe-mapping → Google STT 3-Version Comparison (Primary + 2 Alternatives)');
     console.log('');
     console.log('📍 Command Parsing Routes:');
     console.log('  POST /live-count/parse-command → Constrained Intent Resolution (Claude API)');
     console.log('');
     console.log('🔧 Request Queue: Active (prevents simultaneous Speech API calls)');
-    console.log('🔬 Voice Mapping: Shows 3 Google STT versions (Primary, Alternative 1, Alternative 2)');
-    console.log('🔬 Protocol Comparison: Google STT alternatives only');
+    console.log('🔬 All Modes: Google STT 3-version comparison (Primary, Alternative 1, Alternative 2)');
+    console.log('🔬 Transcription: Google Cloud Speech-to-Text API only');
     console.log('');
 });
