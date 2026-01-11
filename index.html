@@ -955,6 +955,76 @@
             min-height: 22px;
         }
 
+        /* ========== DEBUG PANEL ========== */
+        .debug-panel {
+            background: rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 0.75rem;
+            margin: 1rem 0;
+            overflow: hidden;
+        }
+
+        .debug-header {
+            padding: 0.75rem 1rem;
+            background: rgba(0, 0, 0, 0.05);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .debug-header:active {
+            background: rgba(0, 0, 0, 0.08);
+        }
+
+        .debug-content {
+            padding: 1rem;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+            line-height: 1.6;
+        }
+
+        .debug-content.collapsed {
+            display: none;
+        }
+
+        .debug-log {
+            margin-bottom: 0.75rem;
+            padding: 0.5rem;
+            background: white;
+            border-radius: 0.5rem;
+            border-left: 3px solid #3b82f6;
+        }
+
+        .debug-log.error {
+            border-left-color: #ef4444;
+        }
+
+        .debug-log.success {
+            border-left-color: #10b981;
+        }
+
+        .debug-log.warning {
+            border-left-color: #f59e0b;
+        }
+
+        .debug-label {
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.25rem;
+        }
+
+        .debug-value {
+            color: #6b7280;
+            word-break: break-all;
+        }
+
         .count-display {
             font-size: 1.5rem;
             font-weight: 700;
@@ -1557,6 +1627,20 @@
             </div>
         </div>
 
+        <!-- Debug Panel (Mobile Debugging) -->
+        <div class="debug-panel" id="debug-panel" style="display:none;">
+            <div class="debug-header" onclick="KrushFlow.toggleDebugPanel()">
+                <span>🔍 Debug Info</span>
+                <span id="debug-toggle">▼</span>
+            </div>
+            <div class="debug-content" id="debug-content">
+                <div class="debug-log">
+                    <div class="debug-label">Waiting for activity...</div>
+                    <div class="debug-value">Select a project and start counting to see debug info</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Unmatched Items Alert -->
         <div id="unmatched-alert" class="unmatched-alert" style="display:none;">
             <span id="unmatched-count-text">⚠️ 0 unmatched items</span>
@@ -1868,6 +1952,8 @@ const KrushFlow = {
 
             // Load aliases (try server, fallback to localStorage)
             console.log(`[Live Count] Loading aliases for project: "${projectName}"`);
+            this.addDebugLog('📂 Project Loaded', projectName, 'success');
+
             try {
                 const aliasResponse = await fetch(`/projects/${encodeURIComponent(projectName)}/aliases`);
                 console.log('[Live Count] Alias response status:', aliasResponse.status, aliasResponse.statusText);
@@ -1878,11 +1964,22 @@ const KrushFlow = {
                     aliases = aliasData.aliases || {};
                     console.log('[Live Count] Aliases loaded:', Object.keys(aliases).length, 'master items');
                     console.log('[Live Count] Alias details:', JSON.stringify(aliases, null, 2));
+
+                    // Show in debug panel
+                    const aliasCount = Object.keys(aliases).length;
+                    if (aliasCount > 0) {
+                        this.addDebugLog('✅ Aliases Loaded', `${aliasCount} items with aliases: ${Object.keys(aliases).join(', ')}`, 'success');
+                        this.addDebugLog('📋 Full Alias Map', aliases, 'info');
+                    } else {
+                        this.addDebugLog('⚠️ No Aliases', 'No aliases found for this project', 'warning');
+                    }
                 } else {
                     console.warn('[Live Count] Alias response not OK:', aliasResponse.status);
+                    this.addDebugLog('⚠️ Alias Load Failed', `Server returned status ${aliasResponse.status}`, 'warning');
                 }
             } catch (error) {
                 console.error('[Live Count] Aliases load error:', error);
+                this.addDebugLog('❌ Alias Load Error', error.message, 'error');
             }
 
             // Set up Live Count state
@@ -1896,6 +1993,9 @@ const KrushFlow = {
             console.log('[Live Count] Master list:', this.countingItems);
             console.log('[Live Count] Aliases structure:', this.voiceMappingAliases);
             console.log('[Live Count] Total alias mappings:', Object.keys(this.voiceMappingAliases).length);
+
+            // Show setup complete in debug panel
+            this.addDebugLog('📝 Master List', `${this.countingItems.length} items: ${this.countingItems.join(', ')}`, 'success');
 
             // Initialize all counts to 0
             this.countingCounts = {};
@@ -2815,6 +2915,7 @@ const KrushFlow = {
     // Send audio to server for transcription
     transcribeAudio: async function(audioBlob) {
         console.log('[Transcribe] Starting transcription, blob size:', audioBlob.size, 'bytes');
+        this.addDebugLog('🎙️ Sending Audio', `Size: ${audioBlob.size} bytes`, 'info');
 
         try {
             const formData = new FormData();
@@ -2836,6 +2937,7 @@ const KrushFlow = {
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error('[Transcribe] Server error:', errorText);
+                this.addDebugLog('❌ Transcription Failed', `Status ${response.status}: ${errorText}`, 'error');
                 throw new Error('Transcription failed: ' + response.status);
             }
 
@@ -2845,6 +2947,12 @@ const KrushFlow = {
             if (result.success && result.transcript) {
                 const transcript = result.transcript.trim();
                 console.log('[Audio] Transcript received:', transcript);
+
+                // Show in debug panel
+                this.addDebugLog('📝 Transcript', transcript, 'success');
+                if (result.alternatives && result.alternatives.length > 0) {
+                    this.addDebugLog('🔄 Alternatives', result.alternatives.join(' | '), 'info');
+                }
 
                 // Store STT top choices for Claude API fallback
                 if (result.alternatives && Array.isArray(result.alternatives)) {
@@ -3132,6 +3240,14 @@ const KrushFlow = {
             console.log('[Parse] Recent context:', this.recentCountedItems);
             console.log('[Parse] Complete payload:', JSON.stringify(payload, null, 2));
 
+            // Show in debug panel
+            this.addDebugLog('🤖 Parsing Command', transcript, 'info');
+            this.addDebugLog('📤 Sent to Claude', {
+                transcript: transcript,
+                masterItems: this.countingItems.length,
+                aliases: Object.keys(this.voiceMappingAliases || {}).length
+            }, 'info');
+
             const response = await fetch('/live-count/parse-command', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -3143,6 +3259,7 @@ const KrushFlow = {
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error('[Parse] Server error response:', errorText);
+                this.addDebugLog('❌ Parse Error', `Status ${response.status}: ${errorText}`, 'error');
                 throw new Error('Server error: ' + response.status);
             }
 
@@ -3154,6 +3271,15 @@ const KrushFlow = {
             console.log('[Parse] Operation:', result.operation);
             console.log('[Parse] Quantity:', result.quantity);
             console.log('[Parse] Error:', result.error);
+
+            // Show result in debug panel
+            if (result.success) {
+                const item = result.item || result.canonicalItem;
+                this.addDebugLog('✅ Parse Result', `${result.operation} ${result.quantity} ${item}`, 'success');
+            } else {
+                this.addDebugLog('⚠️ Parse Failed', result.error || 'Unknown error', 'warning');
+            }
+
             return result;
 
         } catch (error) {
@@ -4406,6 +4532,78 @@ const KrushFlow = {
             dailyScanUploadZone.classList.remove('dragover');
             this.handleDailyScanFiles(Array.from(e.dataTransfer.files));
         });
+    },
+
+    // ========== DEBUG PANEL (Mobile Debugging) ==========
+
+    toggleDebugPanel: function() {
+        const content = document.getElementById('debug-content');
+        const toggle = document.getElementById('debug-toggle');
+
+        if (content.classList.contains('collapsed')) {
+            content.classList.remove('collapsed');
+            toggle.textContent = '▼';
+        } else {
+            content.classList.add('collapsed');
+            toggle.textContent = '▶';
+        }
+    },
+
+    addDebugLog: function(label, value, type = 'info') {
+        const debugPanel = document.getElementById('debug-panel');
+        const debugContent = document.getElementById('debug-content');
+
+        if (!debugPanel || !debugContent) return;
+
+        // Show panel if hidden
+        debugPanel.style.display = 'block';
+
+        // Create new log entry
+        const logDiv = document.createElement('div');
+        logDiv.className = `debug-log ${type}`;
+
+        const labelDiv = document.createElement('div');
+        labelDiv.className = 'debug-label';
+        labelDiv.textContent = label;
+
+        const valueDiv = document.createElement('div');
+        valueDiv.className = 'debug-value';
+
+        // Format value based on type
+        if (typeof value === 'object') {
+            valueDiv.textContent = JSON.stringify(value, null, 2);
+        } else {
+            valueDiv.textContent = value;
+        }
+
+        logDiv.appendChild(labelDiv);
+        logDiv.appendChild(valueDiv);
+
+        // Clear "waiting" message if it exists
+        const waitingMsg = debugContent.querySelector('.debug-log .debug-label');
+        if (waitingMsg && waitingMsg.textContent === 'Waiting for activity...') {
+            debugContent.innerHTML = '';
+        }
+
+        // Add to top of log
+        debugContent.insertBefore(logDiv, debugContent.firstChild);
+
+        // Keep only last 10 entries
+        while (debugContent.children.length > 10) {
+            debugContent.removeChild(debugContent.lastChild);
+        }
+    },
+
+    clearDebugLog: function() {
+        const debugContent = document.getElementById('debug-content');
+        if (debugContent) {
+            debugContent.innerHTML = `
+                <div class="debug-log">
+                    <div class="debug-label">Waiting for activity...</div>
+                    <div class="debug-value">Select a project and start counting to see debug info</div>
+                </div>
+            `;
+        }
     }
 };
 
