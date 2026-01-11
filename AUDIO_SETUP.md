@@ -1,7 +1,10 @@
 # KrushFlow Audio API Setup
 
 ## Overview
-KrushFlow uses **Google Cloud Speech-to-Text API** for speech-to-text, then **Claude API** for command parsing and validation.
+KrushFlow uses:
+- **Voice Mapping**: BOTH ChatGPT (OpenAI Whisper) AND Google Cloud Speech-to-Text for side-by-side transcription comparison
+- **Live Count**: Google Cloud Speech-to-Text API for speech-to-text
+- **Command Parsing**: Claude API for validation and parsing
 
 ## Architecture
 
