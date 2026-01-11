@@ -1690,18 +1690,8 @@ const KrushFlow = {
     },
 
     openVoiceMapping: async function() {
-        // Load available projects
-        await this.loadProjects();
-
-        // Populate voice mapping project selector
-        const vmSelector = document.getElementById('voice-mapping-project-selector');
-        vmSelector.innerHTML = '<option value="">📂 Select a master list to train voice aliases...</option>';
-        this.availableProjects.forEach(project => {
-            const option = document.createElement('option');
-            option.value = project.name;
-            option.textContent = `${project.name} (${project.itemCount} items)`;
-            vmSelector.appendChild(option);
-        });
+        // Load available projects (same as Live Count - includes server + localStorage)
+        await this.loadProjectsForVoiceMapping();
 
         // Reset state
         this.voiceMappingMasterList = [];
@@ -1710,6 +1700,41 @@ const KrushFlow = {
         document.getElementById('voice-mapping-actions').style.display = 'none';
 
         this.showScreen('screen-voice-mapping');
+    },
+
+    // Load available projects into Voice Mapping selector (matches Live Count exactly)
+    loadProjectsForVoiceMapping: async function() {
+        try {
+            // Load from server
+            const response = await fetch('/projects/list');
+            const data = await response.json();
+            this.availableProjects = data.projects || [];
+
+            // Also load from localStorage as fallback
+            const localProjects = JSON.parse(localStorage.getItem('krushflow_projects') || '[]');
+
+            // Merge server and local projects (dedupe by name)
+            const allProjects = [...this.availableProjects];
+            localProjects.forEach(localProj => {
+                if (!allProjects.find(p => p.name === localProj.name)) {
+                    allProjects.push(localProj);
+                }
+            });
+
+            const selector = document.getElementById('voice-mapping-project-selector');
+            selector.innerHTML = '<option value="">📂 Select a master list to train voice aliases...</option>';
+
+            allProjects.forEach(project => {
+                const option = document.createElement('option');
+                option.value = project.name;
+                option.textContent = `${project.name} (${project.itemCount || 0} items)`;
+                selector.appendChild(option);
+            });
+
+            console.log('[Voice Mapping] Loaded', allProjects.length, 'projects');
+        } catch (error) {
+            console.error('Failed to load projects for Voice Mapping:', error);
+        }
     },
 
     openDailyCount: async function() {
@@ -3435,15 +3460,48 @@ const KrushFlow = {
         this.selectedVoiceProject = projectName;
 
         try {
-            // Load master list
-            const masterResponse = await fetch(`/projects/${encodeURIComponent(projectName)}/master-list`);
-            const masterData = await masterResponse.json();
-            this.voiceMappingMasterList = masterData.items || [];
+            // Try to load master list from server first
+            let masterList = [];
+            let aliases = {};
 
-            // Load existing aliases
-            const aliasResponse = await fetch(`/projects/${encodeURIComponent(projectName)}/aliases`);
-            const aliasData = await aliasResponse.json();
-            this.voiceMappingAliases = aliasData.aliases || {};
+            try {
+                const response = await fetch(`/projects/${encodeURIComponent(projectName)}/master-list`);
+                if (response.ok) {
+                    const data = await response.json();
+                    masterList = data.items || [];
+                }
+            } catch (error) {
+                console.log('[Voice Mapping] Server load failed, trying localStorage');
+            }
+
+            // Fallback to localStorage
+            if (masterList.length === 0) {
+                const projectData = localStorage.getItem('krushflow_project_' + projectName);
+                if (projectData) {
+                    const parsed = JSON.parse(projectData);
+                    masterList = parsed.items.map(item => item.name || item);
+                }
+            }
+
+            if (masterList.length === 0) {
+                alert('Could not load project. Please try again.');
+                return;
+            }
+
+            this.voiceMappingMasterList = masterList;
+
+            // Load existing aliases (try server, fallback to localStorage)
+            try {
+                const aliasResponse = await fetch(`/projects/${encodeURIComponent(projectName)}/aliases`);
+                if (aliasResponse.ok) {
+                    const aliasData = await aliasResponse.json();
+                    aliases = aliasData.aliases || {};
+                }
+            } catch (error) {
+                console.log('[Voice Mapping] Aliases not loaded from server');
+            }
+
+            this.voiceMappingAliases = aliases;
 
             // Render the voice mapping interface
             this.renderVoiceMappingItems();
@@ -3452,7 +3510,7 @@ const KrushFlow = {
             document.getElementById('voice-mapping-actions').style.display = 'block';
 
         } catch (error) {
-            console.error('Failed to load voice mapping project:', error);
+            console.error('[Voice Mapping] Failed to load project:', error);
             alert('Failed to load project: ' + error.message);
         }
     },
