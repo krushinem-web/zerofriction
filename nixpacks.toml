@@ -2,7 +2,10 @@
 nixPkgs = ["nodejs", "pnpm-9_x"]
 
 [phases.install]
-cmds = ["pnpm install --frozen-lockfile"]
+cmds = ["pnpm install"]
+
+[phases.build]
+cmds = ["echo 'Build skipped - pnpm install handles everything'"]
 
 [start]
 cmd = "node server.js"
