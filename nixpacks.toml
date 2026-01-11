@@ -1,8 +1,11 @@
 [phases.setup]
-nixPkgs = ["nodejs", "pnpm-9_x"]
+nixPkgs = ["nodejs"]
 
 [phases.install]
-cmds = ["pnpm install --frozen-lockfile"]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = ["echo 'Build skipped - npm ci handles everything'"]
 
 [start]
 cmd = "node server.js"
