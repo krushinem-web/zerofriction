@@ -1656,6 +1656,8 @@ const KrushFlow = {
     autosaveTimer: null,
     lastSaveTime: null,
     saveInProgress: false,
+    lastSttTopChoices: [],  // Last STT alternatives for Claude API fallback
+    recentCountedItems: [],  // Recent items that were successfully counted (for context)
 
     // ===== NAVIGATION =====
     showScreen: function(screenId) {
@@ -1889,6 +1891,10 @@ const KrushFlow = {
             // Reset unmatched queue for new session
             this.unmatchedQueue = [];
             this.updateUnmatchedUI();
+
+            // Reset context tracking for new session
+            this.lastSttTopChoices = [];
+            this.recentCountedItems = [];
 
             // Show voice controls
             document.getElementById('live-count-controls').style.display = 'flex';
@@ -2794,6 +2800,13 @@ const KrushFlow = {
                 const transcript = result.transcript.trim();
                 console.log('[Audio] Transcript received:', transcript);
 
+                // Store STT top choices for Claude API fallback
+                if (result.alternatives && Array.isArray(result.alternatives)) {
+                    this.lastSttTopChoices = [transcript, ...result.alternatives.slice(0, 2)];
+                } else {
+                    this.lastSttTopChoices = [transcript];
+                }
+
                 if (transcript) {
                     // Split multi-command transcripts
                     const commands = this.splitMultiCommand(transcript);
@@ -2996,14 +3009,50 @@ const KrushFlow = {
         // Local parsing failed - try server-side Claude API parsing
         console.log('[Voice] Local parsing failed, calling Claude API...');
 
+        // Build parsedSlots from local parsing attempt
+        const parsedSlots = {
+            itemPhrase: null,
+            operationCandidate: null,
+            numberCandidates: []
+        };
+
+        // Try to extract operation keywords
+        if (/\b(add|plus)\b/i.test(lowerTranscript)) {
+            parsedSlots.operationCandidate = 'ADD';
+        } else if (/\b(subtract|minus)\b/i.test(lowerTranscript)) {
+            parsedSlots.operationCandidate = 'SUBTRACT';
+        } else if (/\b(set|make)\b/i.test(lowerTranscript)) {
+            parsedSlots.operationCandidate = 'SET';
+        } else if (/\b(erase|clear|zero)\b/i.test(lowerTranscript)) {
+            parsedSlots.operationCandidate = 'ERASE';
+        }
+
+        // Extract all numbers from transcript
+        const numberMatches = lowerTranscript.match(/\d+/g);
+        if (numberMatches) {
+            parsedSlots.numberCandidates = numberMatches.map(n => parseInt(n, 10));
+        }
+
+        // Try to extract item phrase (everything after removing operation and numbers)
+        let itemPhrase = lowerTranscript;
+        itemPhrase = itemPhrase.replace(/\b(add|plus|subtract|minus|set|make|erase|clear|zero)\b/gi, '').trim();
+        itemPhrase = itemPhrase.replace(/\d+/g, '').trim();
+        if (itemPhrase.length > 0) {
+            parsedSlots.itemPhrase = itemPhrase;
+        }
+
         try {
             const response = await fetch('/live-count/parse-command', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     transcript: transcript,
+                    sttTopChoices: this.lastSttTopChoices || [],
+                    parsedSlots: parsedSlots,
                     masterList: this.countingItems,
-                    aliasDictionary: this.voiceMappingAliases || {}
+                    aliasDictionary: this.voiceMappingAliases || {},
+                    recentContext: this.recentCountedItems || [],
+                    allowAliasAutoSave: true
                 })
             });
 
@@ -3083,6 +3132,19 @@ const KrushFlow = {
 
         // Apply mutation
         this.countingCounts[item] = newCount;
+
+        // Track recently counted items for context (keep last 5)
+        if (!this.recentCountedItems.includes(item)) {
+            this.recentCountedItems.unshift(item);
+            if (this.recentCountedItems.length > 5) {
+                this.recentCountedItems.pop();
+            }
+        } else {
+            // Move to front if already in list
+            const index = this.recentCountedItems.indexOf(item);
+            this.recentCountedItems.splice(index, 1);
+            this.recentCountedItems.unshift(item);
+        }
 
         // Log with confidence if available
         const confidenceStr = confidence !== undefined ? ` (confidence: ${(confidence * 100).toFixed(0)}%)` : '';
