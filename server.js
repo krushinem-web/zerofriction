@@ -757,6 +757,62 @@ app.post('/vision/align-master-list', express.json(), (req, res) => {
 // VOICE MAPPING / ALIAS MANAGEMENT ENDPOINTS
 // ============================================
 
+// ========== GLOBAL ALIASES (Used across all projects) ==========
+
+// Get global aliases
+app.get('/aliases', (req, res) => {
+    try {
+        const globalAliasesPath = path.join(DATA_DIR, 'global_aliases.json');
+
+        if (!fs.existsSync(globalAliasesPath)) {
+            // Return empty aliases if none saved yet
+            return res.json({ aliases: {}, updatedAt: null });
+        }
+
+        const data = JSON.parse(fs.readFileSync(globalAliasesPath, 'utf8'));
+        res.json(data);
+
+    } catch (error) {
+        console.error('[Global Aliases] Retrieve error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Save global aliases
+app.post('/aliases', express.json(), (req, res) => {
+    try {
+        const { aliases } = req.body;
+
+        if (!aliases || typeof aliases !== 'object') {
+            return res.status(400).json({ error: 'Aliases must be an object' });
+        }
+
+        // Ensure DATA_DIR exists
+        if (!fs.existsSync(DATA_DIR)) {
+            fs.mkdirSync(DATA_DIR, { recursive: true });
+        }
+
+        // Save global aliases to file
+        const globalAliasesPath = path.join(DATA_DIR, 'global_aliases.json');
+        const data = {
+            aliases,
+            updatedAt: new Date().toISOString()
+        };
+
+        fs.writeFileSync(globalAliasesPath, JSON.stringify(data, null, 2));
+
+        console.log(`[Global Aliases] Saved ${Object.keys(aliases).length} global aliases`);
+
+        res.json({ success: true, aliasCount: Object.keys(aliases).length });
+
+    } catch (error) {
+        console.error('[Global Aliases] Save error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ========== PROJECT-SPECIFIC ALIASES (Legacy, may not be used) ==========
+
 // Save voice aliases for a project
 app.post('/projects/:projectName/aliases', express.json(), (req, res) => {
     try {

@@ -1950,35 +1950,35 @@ const KrushFlow = {
                 return;
             }
 
-            // Load aliases (try server, fallback to localStorage)
-            console.log(`[Live Count] Loading aliases for project: "${projectName}"`);
+            // Load GLOBAL aliases (used across all projects)
+            console.log(`[Live Count] Loading GLOBAL aliases`);
             this.addDebugLog('📂 Project Loaded', projectName, 'success');
 
             try {
-                const aliasResponse = await fetch(`/projects/${encodeURIComponent(projectName)}/aliases`);
-                console.log('[Live Count] Alias response status:', aliasResponse.status, aliasResponse.statusText);
+                const aliasResponse = await fetch('/aliases');
+                console.log('[Live Count] Global alias response status:', aliasResponse.status, aliasResponse.statusText);
 
                 if (aliasResponse.ok) {
                     const aliasData = await aliasResponse.json();
-                    console.log('[Live Count] Alias data received:', aliasData);
+                    console.log('[Live Count] Global alias data received:', aliasData);
                     aliases = aliasData.aliases || {};
-                    console.log('[Live Count] Aliases loaded:', Object.keys(aliases).length, 'master items');
-                    console.log('[Live Count] Alias details:', JSON.stringify(aliases, null, 2));
+                    console.log('[Live Count] Global aliases loaded:', Object.keys(aliases).length, 'master items');
+                    console.log('[Live Count] Global alias details:', JSON.stringify(aliases, null, 2));
 
                     // Show in debug panel
                     const aliasCount = Object.keys(aliases).length;
                     if (aliasCount > 0) {
-                        this.addDebugLog('✅ Aliases Loaded', `${aliasCount} items with aliases: ${Object.keys(aliases).join(', ')}`, 'success');
+                        this.addDebugLog('✅ Global Aliases Loaded', `${aliasCount} items with aliases: ${Object.keys(aliases).join(', ')}`, 'success');
                         this.addDebugLog('📋 Full Alias Map', aliases, 'info');
                     } else {
-                        this.addDebugLog('⚠️ No Aliases', 'No aliases found for this project', 'warning');
+                        this.addDebugLog('⚠️ No Aliases', 'No global aliases found. Create them in Voice Mapping.', 'warning');
                     }
                 } else {
-                    console.warn('[Live Count] Alias response not OK:', aliasResponse.status);
+                    console.warn('[Live Count] Global alias response not OK:', aliasResponse.status);
                     this.addDebugLog('⚠️ Alias Load Failed', `Server returned status ${aliasResponse.status}`, 'warning');
                 }
             } catch (error) {
-                console.error('[Live Count] Aliases load error:', error);
+                console.error('[Live Count] Global aliases load error:', error);
                 this.addDebugLog('❌ Alias Load Error', error.message, 'error');
             }
 
@@ -4000,15 +4000,16 @@ const KrushFlow = {
 
             this.voiceMappingMasterList = masterList;
 
-            // Load existing aliases (try server, fallback to localStorage)
+            // Load existing GLOBAL aliases
             try {
-                const aliasResponse = await fetch(`/projects/${encodeURIComponent(projectName)}/aliases`);
+                const aliasResponse = await fetch('/aliases');
                 if (aliasResponse.ok) {
                     const aliasData = await aliasResponse.json();
                     aliases = aliasData.aliases || {};
+                    console.log('[Voice Mapping] Loaded global aliases:', Object.keys(aliases).length);
                 }
             } catch (error) {
-                console.log('[Voice Mapping] Aliases not loaded from server');
+                console.log('[Voice Mapping] Global aliases not loaded from server');
             }
 
             this.voiceMappingAliases = aliases;
@@ -4376,17 +4377,18 @@ const KrushFlow = {
             this.voiceMappingAliases[item] = this.voiceMappingAliases[item].filter(a => a !== alias);
         }
 
-        // Update server immediately
+        // Update GLOBAL aliases on server immediately
         try {
-            await fetch(`/projects/${encodeURIComponent(this.selectedVoiceProject)}/aliases`, {
+            await fetch('/aliases', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     aliases: this.voiceMappingAliases
                 })
             });
+            console.log('[Voice Mapping] Global aliases updated after removal');
         } catch (error) {
-            console.error('Failed to update aliases after removal:', error);
+            console.error('Failed to update global aliases after removal:', error);
         }
 
         // Refresh modal
@@ -4419,13 +4421,16 @@ const KrushFlow = {
         this.goHome();
     },
 
-    // Helper: Save aliases to server programmatically (for auto-learning)
+    // Helper: Save GLOBAL aliases to server programmatically (for auto-learning)
     saveAliasesToServer: async function(projectName, aliases) {
-        if (!projectName || !aliases) {
-            throw new Error('Project name and aliases required');
+        if (!aliases) {
+            throw new Error('Aliases required');
         }
 
-        const response = await fetch(`/projects/${encodeURIComponent(projectName)}/aliases`, {
+        // projectName parameter kept for backwards compatibility but not used
+        // Aliases are now GLOBAL across all projects
+
+        const response = await fetch('/aliases', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -4434,11 +4439,11 @@ const KrushFlow = {
         });
 
         if (!response.ok) {
-            throw new Error('Failed to save aliases to server');
+            throw new Error('Failed to save global aliases to server');
         }
 
         const data = await response.json();
-        console.log(`[Alias Learning] Saved ${data.aliasCount} aliases to server`);
+        console.log(`[Alias Learning] Saved ${data.aliasCount} global aliases to server`);
         return data;
     },
 
