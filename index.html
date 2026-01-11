@@ -2612,142 +2612,128 @@ const KrushFlow = {
         }
     },
 
-    // Start voice session with turn clipping
+    // SIMPLIFIED: Make it work EXACTLY like Voice Mapping - no turn clipping
     startVoiceSession: async function() {
         if (this.countingItems.length === 0) {
             alert('No items loaded. Please select a project first or load test data.');
             return;
         }
 
+        const statusEl = document.getElementById('count-voice-status');
+        const micBtn = document.getElementById('count-mic-btn');
+        const transcriptEl = document.getElementById('count-transcript');
+
         try {
             // Check MediaRecorder support
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                alert('Your browser does not support audio recording. Please use Chrome, Firefox, or Edge.');
+                statusEl.textContent = 'Browser does not support audio recording';
                 return;
             }
 
             // Request microphone access
-            this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-            // Set up Web Audio API for VAD
-            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const source = this.audioContext.createMediaStreamSource(this.mediaStream);
-            this.analyserNode = this.audioContext.createAnalyser();
-            this.analyserNode.fftSize = 2048;
-            source.connect(this.analyserNode);
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
             // Get supported MIME type
-            this.recordingMimeType = this.getSupportedMimeType();
+            const mimeType = this.getSupportedMimeType();
 
             // Create MediaRecorder with supported type
-            const options = this.recordingMimeType ? { mimeType: this.recordingMimeType } : {};
-            this.mediaRecorder = new MediaRecorder(this.mediaStream, options);
+            const options = mimeType ? { mimeType } : {};
+            const mediaRecorder = new MediaRecorder(stream, options);
 
-            this.audioChunks = [];
+            const audioChunks = [];
 
-            // Collect audio data continuously
-            this.mediaRecorder.ondataavailable = (event) => {
+            // Collect audio data
+            mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
-                    console.log(`[Turn Clipping] ondataavailable: ${event.data.size} bytes, state: ${this.clipState}, isCapturing: ${this.isCapturingClip}`);
-                    this.audioChunks.push(event.data);
-
-                    // If we're capturing a clip, add to clip buffer
-                    if (this.isCapturingClip) {
-                        this.clipBuffer.push(event.data);
-                        console.log(`[Turn Clipping] Added chunk to clipBuffer (now ${this.clipBuffer.length} chunks, total ${this.clipBuffer.reduce((sum, c) => sum + c.size, 0)} bytes)`);
-                    }
+                    console.log(`[Live Count] Audio chunk: ${event.data.size} bytes`);
+                    audioChunks.push(event.data);
                 }
             };
 
-            // Start recording continuously WITHOUT timeslice (we'll use requestData() instead)
-            this.mediaRecorder.start();
-            this.isListening = true;
-            this.sessionClipCount = 0;
+            // Process audio when recording stops
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunks, { type: mimeType || 'audio/webm' });
 
-            // Initialize state machine
-            this.clipState = this.CLIP_STATE.IDLE_LISTENING;
-            this.speechActiveMs = 0;
-            this.silenceMs = 0;
-            this.clipDurationMs = 0;
-            this.clipBuffer = [];
-            this.isCapturingClip = false;
-            this.lastVadCheckTime = performance.now();
-            this.lastStateTransitionTime = performance.now();
+                console.log('[Live Count] Sending audio for transcription:', audioBlob.size, 'bytes');
+
+                try {
+                    // Send to server for transcription (using same endpoint as Voice Mapping for now)
+                    const formData = new FormData();
+                    formData.append('audio', audioBlob, 'audio.webm');
+
+                    const response = await fetch('/audio/transcribe-mapping', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Transcription failed');
+                    }
+
+                    const result = await response.json();
+
+                    if (result.success && result.transcript) {
+                        const transcript = result.transcript.trim();
+
+                        // Just show the transcript - no parsing, no commands
+                        transcriptEl.textContent = `Heard: "${transcript}"`;
+                        statusEl.textContent = '✅ Transcription successful';
+
+                        console.log('[Live Count] Transcript:', transcript);
+                    } else {
+                        transcriptEl.textContent = 'No speech detected';
+                        statusEl.textContent = '⚠️ No speech detected - speak louder';
+                    }
+
+                } catch (error) {
+                    console.error('[Live Count] Transcription error:', error);
+                    statusEl.textContent = '❌ Transcription failed';
+                } finally {
+                    micBtn.classList.remove('recording');
+                    this.isListening = false;
+                    // Stop media stream
+                    stream.getTracks().forEach(track => track.stop());
+                }
+            };
 
             // Update UI
-            document.getElementById('count-mic-btn').classList.add('recording');
-            this.updateClipStateUI();
+            micBtn.classList.add('recording');
+            this.isListening = true;
+            statusEl.textContent = 'Recording... (speak now)';
 
-            // Start VAD check loop
-            this.vadCheckInterval = setInterval(() => {
-                this.runVadCheck();
-            }, this.VAD_CHECK_INTERVAL_MS);
+            // Start recording
+            mediaRecorder.start();
 
-            console.log('[Turn Clipping] Session started');
+            // Auto-stop after 3 seconds (just like Voice Mapping)
+            setTimeout(() => {
+                if (mediaRecorder.state === 'recording') {
+                    console.log('[Live Count] Auto-stopping after 3 seconds');
+                    mediaRecorder.stop();
+                }
+            }, 3000);
 
         } catch (error) {
-            console.error('[Turn Clipping] Failed to start session:', error);
-            alert('Could not access microphone. Please grant permission and try again.');
-            this.stopVoiceSession();
+            console.error('[Live Count] Failed to start recording:', error);
+            statusEl.textContent = 'Microphone access denied';
+            micBtn.classList.remove('recording');
+            this.isListening = false;
         }
     },
 
-    // Stop voice session
+    // Stop voice session (simplified - no turn clipping)
     stopVoiceSession: function() {
         this.isListening = false;
-        this.isCapturingClip = false;
-
-        // Stop VAD check loop
-        if (this.vadCheckInterval) {
-            clearInterval(this.vadCheckInterval);
-            this.vadCheckInterval = null;
-        }
-
-        // Stop clip data request interval
-        if (this.clipDataInterval) {
-            clearInterval(this.clipDataInterval);
-            this.clipDataInterval = null;
-        }
-
-        // Finalize any active clip before stopping
-        if (this.clipState === this.CLIP_STATE.IN_SPEECH || this.clipState === this.CLIP_STATE.IN_SILENCE) {
-            this.finalizeClip();
-        }
-
-        // Stop MediaRecorder
-        if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-            this.mediaRecorder.stop();
-        }
-
-        // Stop media stream
-        if (this.mediaStream) {
-            this.mediaStream.getTracks().forEach(track => track.stop());
-            this.mediaStream = null;
-        }
-
-        // Close audio context
-        if (this.audioContext) {
-            this.audioContext.close();
-            this.audioContext = null;
-        }
-
-        // Reset state
-        this.clipState = this.CLIP_STATE.IDLE_LISTENING;
-        this.clipBuffer = [];
-        this.audioChunks = [];
 
         // Update UI
         const micBtn = document.getElementById('count-mic-btn');
         const statusEl = document.getElementById('count-voice-status');
         const transcriptEl = document.getElementById('count-transcript');
-        const parsedEl = document.getElementById('count-parsed');
 
         if (micBtn) micBtn.classList.remove('recording');
-        if (statusEl) statusEl.textContent = 'Tap mic to start session';
+        if (statusEl) statusEl.textContent = 'Tap mic to record';
         if (transcriptEl) transcriptEl.textContent = '';
-        if (parsedEl) parsedEl.textContent = '';
 
-        console.log('[Turn Clipping] Session stopped. Total clips:', this.sessionClipCount);
+        console.log('[Live Count] Recording stopped');
     },
 
     // VAD Check Loop (runs every 50ms)
