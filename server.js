@@ -830,7 +830,15 @@ app.get('/projects/:projectName/aliases', (req, res) => {
 // Uses constrained intent-resolution engine for maximum accuracy
 app.post('/live-count/parse-command', express.json(), async (req, res) => {
     try {
-        const { transcript, masterList, aliases, recentContext } = req.body;
+        const {
+            transcript,
+            sttTopChoices,
+            masterList,
+            aliasDictionary,
+            parsedSlots,
+            recentContext,
+            allowAliasAutoSave
+        } = req.body;
 
         if (!transcript) {
             return res.status(400).json({ error: 'Transcript required' });
@@ -842,136 +850,179 @@ app.post('/live-count/parse-command', express.json(), async (req, res) => {
 
         console.log(`[Live Count Parse] Transcript: "${transcript}"`);
         console.log(`[Live Count Parse] Master list: ${masterList.length} items`);
-        console.log(`[Live Count Parse] Aliases: ${Object.keys(aliases || {}).length} mappings`);
+        console.log(`[Live Count Parse] STT Top Choices: ${JSON.stringify(sttTopChoices || [])}`);
+        console.log(`[Live Count Parse] Aliases: ${Object.keys(aliasDictionary || {}).length} mappings`);
 
-        // Build alias context for Claude
-        const aliasContext = [];
-        if (aliases) {
-            for (const [masterItem, aliasList] of Object.entries(aliases)) {
-                if (aliasList && aliasList.length > 0) {
-                    aliasContext.push(`${masterItem}: ${aliasList.join(', ')}`);
-                }
-            }
-        }
+        // Build alias dictionary for Claude
+        const aliasDictStr = aliasDictionary ? JSON.stringify(aliasDictionary, null, 2) : '{}';
 
-        // Use Claude API with constrained intent-resolution prompt
-        const aiResponse = await anthropic.messages.create({
-            model: "claude-3-5-sonnet-20241022",
-            max_tokens: 500,
-            messages: [{
-                role: "user",
-                content: `You are a constrained intent-resolution engine for a voice-driven counting system.
+        // Use Claude API with STRICT constrained resolution engine (per claude prompt.txt)
+        const systemPrompt = `SYSTEM: LIVE COUNT — CONSTRAINED RESOLUTION ENGINE (NO HALLUCINATION)
 
-IMPORTANT:
-You are NOT a speech recognizer.
-You are NOT allowed to invent items.
-You may ONLY choose from the provided candidate lists.
+You are Claude.
+You operate ONLY in LIVE COUNT mode.
 
-Your job is to resolve user intent from imperfect voice transcription by choosing the most plausible interpretation under strict constraints.
+You are NOT a chatbot.
+You are NOT allowed to invent, infer, guess, or expand data.
+You must behave as a deterministic resolution engine under strict constraints.
 
-––––––––––––––––––––
-INPUT
-––––––––––––––––––––
+────────────────────────────────────────
+AUTHORITATIVE DATA (NON-NEGOTIABLE)
+────────────────────────────────────────
+When data is sent to you:
 
-TRANSCRIPT: "${transcript}"
+1) masterList[] IS AUTHORITATIVE
+   - It is the ONLY valid universe of canonical items
+   - You may ONLY output canonicalItem values that exist EXACTLY in masterList
 
-VALID CANDIDATE ITEMS (canonical inventory items):
-${masterList.join('\n')}
+2) aliasDictionary{} IS AUTHORITATIVE
+   - alias → canonicalItem mappings are FINAL once present
+   - You may NOT override or second-guess an alias
+   - canonicalItem from alias MUST exist in masterList
 
-${aliasContext.length > 0 ? `KNOWN VOICE ALIASES:\n${aliasContext.join('\n')}` : ''}
+3) STT data is NOT authoritative
+   - Transcripts and STT guesses are noisy input ONLY
 
-${recentContext ? `RECENT CONTEXT: ${recentContext}` : ''}
+If you cannot resolve WITHOUT GUESSING, you MUST stop and request confirmation.
 
-––––––––––––––––––––
-ABSOLUTE RULES (NON-NEGOTIABLE)
-––––––––––––––––––––
+────────────────────────────────────────
+ABSOLUTE NO-HALLUCINATION RULES
+────────────────────────────────────────
+• You may ONLY select canonical items that exist in masterList.
+• You may NOT create new item names.
+• You may NOT correct spelling into new items.
+• You may NOT invent numbers.
+• You may NOT invent operations.
+• If uncertainty exists → NEEDS_CONFIRMATION.
+• If no item fits → UNMAPPED.
 
-• You may ONLY output a canonical item that exists in the candidate list.
-• You may NOT invent, rename, or modify item names.
-• If no candidate is plausible, return canonicalItem: "UNMAPPED".
-• If confidence is low, mark needsConfirmation: true.
-• Output JSON ONLY. No commentary. No markdown.
+Violation of any rule is a HARD FAILURE.
 
-––––––––––––––––––––
-VERB INTERPRETATION RULES
-––––––––––––––––––––
+────────────────────────────────────────
+DETERMINISTIC RESOLUTION ORDER
+────────────────────────────────────────
 
-Normalize operations as:
+STEP 1 — ALIAS MATCH (HIGHEST PRIORITY)
+- Normalize itemPhrase.
+- If itemPhrase matches aliasDictionary key:
+  canonicalItem = aliasDictionary[itemPhrase]
+  This is a FULL MATCH.
 
-ADD       → increase existing count
-SUBTRACT  → decrease existing count (minimum 0)
-SET       → overwrite existing count
-ERASE     → equivalent to SET with value 0
+STEP 2 — DIRECT MASTER LIST MATCH
+- If itemPhrase exactly matches an entry in masterList (case-insensitive):
+  canonicalItem = that masterList entry.
 
-Notes:
-• "at", "equals", "is" → usually SET
-• "add", "plus", "and" → ADD
-• "take away", "minus", "subtract" → SUBTRACT
-• "erase", "clear", "zero" → ERASE
-• If unclear, choose the most conservative interpretation.
+STEP 3 — STT TOP CHOICES ASSIST
+- Evaluate sttTopChoices (max 3).
+- If any STT choice exactly or strongly corresponds to ONE masterList item:
+  treat it as a plausible candidate.
 
-––––––––––––––––––––
-NUMBER HANDLING RULES
-––––––––––––––––––––
+STEP 4 — CANDIDATE SET
+- Build candidateItems from:
+  - alias match (if any)
+  - direct masterList match
+  - STT top choices mapped to masterList
+- candidateItems MUST contain ONLY masterList entries.
 
-• Combine multiple numbers ONLY if speech implies addition (e.g., "34 plus 34" → 68)
-• Do NOT invent numbers
-• If no valid number is present, set value = null
+If:
+- candidateItems has exactly ONE item → select it.
+- candidateItems has more than one item → ambiguity → NEEDS_CONFIRMATION.
+- candidateItems empty → UNMAPPED.
 
-––––––––––––––––––––
-CONFIDENCE RULES
-––––––––––––––––––––
+────────────────────────────────────────
+OPERATION RULES
+────────────────────────────────────────
+Allowed operations:
+ADD, SUBTRACT, SET, ERASE
 
-Return a confidence score from 0.00 to 1.00 based on:
-• Strength of match between item phrase and chosen item
-• Clarity of verb
-• Clarity of number interpretation
-• Use of recent context (if provided)
+Interpretation:
+- "add", "plus", "and" → ADD
+- "subtract", "minus", "take away" → SUBTRACT
+- "erase", "clear", "delete" → ERASE (value = 0)
+- "at", "equals", "is", or no explicit verb → SET
 
-Guidelines:
-≥ 0.85 → confident (needsConfirmation: false)
-0.60–0.84 → plausible but needs confirmation (needsConfirmation: true)
-< 0.60 → UNMAPPED
+If verb is ambiguous → NEEDS_CONFIRMATION.
 
-––––––––––––––––––––
-ALIAS LEARNING RULE
-––––––––––––––––––––
+────────────────────────────────────────
+NUMBER RULES
+────────────────────────────────────────
+• Use ONLY numbers in numberCandidates or explicit numeric tokens.
+• If exactly one number → value = that number.
+• If explicit "X plus Y" → value = X + Y.
+• If no reliable number → value = null AND NEEDS_CONFIRMATION.
+• ERASE does not require a number.
 
-If the spoken item phrase clearly maps to a canonical item but isn't in the alias list, return an aliasToSave value so the system can store it permanently.
+────────────────────────────────────────
+DECISION STATES
+────────────────────────────────────────
+AUTO_COMMIT:
+- canonicalItem resolved
+- operation resolved
+- value resolved (or ERASE)
 
-Example:
-spoken: "rebs"
-canonical: "Ribs"
-aliasToSave: "rebs"
+NEEDS_CONFIRMATION:
+- multiple candidateItems
+- ambiguous operation
+- ambiguous or missing number
 
-––––––––––––––––––––
-OUTPUT FORMAT (STRICT)
-––––––––––––––––––––
+UNMAPPED:
+- no plausible masterList item
 
-Return EXACTLY this JSON structure:
+────────────────────────────────────────
+ALIAS AUTO-SAVE RULE (LIVE COUNT)
+────────────────────────────────────────
+Aliases are auto-saved ONLY when ALL are true:
+- decisionState = AUTO_COMMIT
+- canonicalItem ≠ UNMAPPED
+- allowAliasAutoSave = true
+- itemPhraseNormalized is NOT already a masterList name
+- mapping resulted from user confirmation OR explicit resolution
+
+If NEEDS_CONFIRMATION or UNMAPPED:
+- aliasToSave MUST be null.
+
+────────────────────────────────────────
+OUTPUT FORMAT (STRICT JSON ONLY)
+────────────────────────────────────────
+Return EXACTLY this schema:
 
 {
-  "canonicalItem": "string | UNMAPPED",
-  "operation": "ADD | SUBTRACT | SET | ERASE | null",
-  "value": number | null,
-  "confidence": number,
-  "needsConfirmation": boolean,
-  "aliasToSave": "string | null"
+  "canonicalItem": "string|UNMAPPED",
+  "operation": "ADD|SUBTRACT|SET|ERASE|null",
+  "value": number|null,
+  "decisionState": "AUTO_COMMIT|NEEDS_CONFIRMATION|UNMAPPED",
+  "topChoices": ["string","string","string"],
+  "aliasToSave": "string|null"
 }
 
-––––––––––––––––––––
-DECISION PRIORITY ORDER
-––––––––––––––––––––
+Rules:
+- topChoices must always contain exactly 3 entries.
+- Each topChoices entry must be a masterList item or "UNMAPPED".
+- If canonicalItem = UNMAPPED → decisionState ≠ AUTO_COMMIT.
+- If decisionState ≠ AUTO_COMMIT → aliasToSave = null.`;
 
-1) Exact alias match (if provided)
-2) Strong phonetic similarity to candidate items
-3) Fuzzy textual similarity to candidate items
-4) Recent context (if provided)
-5) If still unclear → UNMAPPED
+        const userPrompt = `INPUT YOU WILL RECEIVE:
 
-Never guess outside the candidate list.
-Never hallucinate.
-Never optimize for convenience over correctness.`
+- transcript: ${transcript}
+- sttTopChoices: ${JSON.stringify(sttTopChoices || [])}
+- masterList: ${JSON.stringify(masterList)}
+- aliasDictionary: ${aliasDictStr}
+- parsedSlots: ${JSON.stringify(parsedSlots || {})}
+- recentContext: ${recentContext || 'null'}
+- allowAliasAutoSave: ${allowAliasAutoSave || false}
+
+ALL information provided MUST be considered.
+You may NOT assume anything outside this payload.
+
+BEGIN PROCESSING WITH PROVIDED INPUT`;
+
+        const aiResponse = await anthropic.messages.create({
+            model: "claude-3-5-sonnet-20241022",
+            max_tokens: 1000,
+            system: systemPrompt,
+            messages: [{
+                role: "user",
+                content: userPrompt
             }]
         });
 
@@ -989,41 +1040,81 @@ Never optimize for convenience over correctness.`
             });
         }
 
+        // Validate output format (strict per claude prompt.txt)
+        if (!parsed.topChoices || parsed.topChoices.length !== 3) {
+            console.error('[Live Count Parse] ERROR: topChoices must have exactly 3 entries');
+            return res.json({
+                success: false,
+                error: 'Invalid response format from resolution engine'
+            });
+        }
+
         // Handle UNMAPPED response
-        if (parsed.canonicalItem === 'UNMAPPED') {
-            console.log(`[Live Count Parse] UNMAPPED - confidence too low or no match`);
+        if (parsed.canonicalItem === 'UNMAPPED' || parsed.decisionState === 'UNMAPPED') {
+            console.log(`[Live Count Parse] UNMAPPED - no plausible masterList item`);
             return res.json({
                 success: false,
                 error: 'Could not identify item from master list',
-                unmapped: true
+                unmapped: true,
+                topChoices: parsed.topChoices
             });
         }
 
-        // Validate canonical item exists in master list
-        const matchedItem = masterList.find(item =>
-            item.toLowerCase().trim() === parsed.canonicalItem.toLowerCase().trim()
-        );
+        // Handle NEEDS_CONFIRMATION
+        if (parsed.decisionState === 'NEEDS_CONFIRMATION') {
+            console.log(`[Live Count Parse] NEEDS_CONFIRMATION - ambiguity detected`);
+            console.log(`   Top Choices: ${JSON.stringify(parsed.topChoices)}`);
 
-        if (!matchedItem) {
-            console.log(`[Live Count Parse] ERROR: Claude returned item not in master list: "${parsed.canonicalItem}"`);
+            // Validate canonical item exists in master list
+            const matchedItem = masterList.find(item =>
+                item.toLowerCase().trim() === parsed.canonicalItem.toLowerCase().trim()
+            );
+
+            return res.json({
+                success: true,
+                needsConfirmation: true,
+                item: matchedItem || parsed.canonicalItem,
+                operation: parsed.operation,
+                quantity: parsed.value,
+                topChoices: parsed.topChoices,
+                aliasToSave: null  // Per spec: NEEDS_CONFIRMATION → aliasToSave = null
+            });
+        }
+
+        // Handle AUTO_COMMIT
+        if (parsed.decisionState === 'AUTO_COMMIT') {
+            // Validate canonical item exists in master list
+            const matchedItem = masterList.find(item =>
+                item.toLowerCase().trim() === parsed.canonicalItem.toLowerCase().trim()
+            );
+
+            if (!matchedItem) {
+                console.log(`[Live Count Parse] ERROR: Claude returned item not in master list: "${parsed.canonicalItem}"`);
+                return res.json({
+                    success: false,
+                    error: 'Invalid item returned (not in master list)'
+                });
+            }
+
+            console.log(`[Live Count Parse] AUTO_COMMIT: ${parsed.operation} ${parsed.value} ${matchedItem}`);
+            console.log(`   Alias to save: ${parsed.aliasToSave || 'none'}`);
+
+            res.json({
+                success: true,
+                needsConfirmation: false,
+                item: matchedItem,
+                operation: parsed.operation,
+                quantity: parsed.value,
+                topChoices: parsed.topChoices,
+                aliasToSave: parsed.aliasToSave
+            });
+        } else {
+            console.error(`[Live Count Parse] ERROR: Unknown decisionState: ${parsed.decisionState}`);
             return res.json({
                 success: false,
-                error: 'Invalid item returned'
+                error: 'Invalid decision state from resolution engine'
             });
         }
-
-        // Success!
-        console.log(`[Live Count Parse] SUCCESS: ${parsed.operation} ${parsed.value} ${matchedItem} (confidence: ${parsed.confidence})`);
-
-        res.json({
-            success: true,
-            item: matchedItem,
-            operation: parsed.operation,
-            quantity: parsed.value,
-            confidence: parsed.confidence,
-            needsConfirmation: parsed.needsConfirmation,
-            aliasToSave: parsed.aliasToSave
-        });
 
     } catch (error) {
         console.error('[Live Count Parse] Error:', error);
