@@ -576,8 +576,13 @@ app.post('/parse-excel', upload.single('file'), async (req, res) => {
 // MASTER LIST PERSISTENCE ENDPOINTS
 // ============================================
 
-// Ensure data directory exists
+// Ensure data directories exist
+const BASE_DATA_DIR = path.join(__dirname, 'data');
 const DATA_DIR = path.join(__dirname, 'data', 'projects');
+
+if (!fs.existsSync(BASE_DATA_DIR)) {
+    fs.mkdirSync(BASE_DATA_DIR, { recursive: true });
+}
 if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
 }
@@ -762,7 +767,7 @@ app.post('/vision/align-master-list', express.json(), (req, res) => {
 // Get global aliases
 app.get('/aliases', (req, res) => {
     try {
-        const globalAliasesPath = path.join(DATA_DIR, 'global_aliases.json');
+        const globalAliasesPath = path.join(BASE_DATA_DIR, 'global_aliases.json');
         console.log(`\n═══ GET /aliases ═══`);
         console.log(`📂 File path: ${globalAliasesPath}`);
         console.log(`📂 Absolute path: ${path.resolve(globalAliasesPath)}`);
@@ -800,13 +805,13 @@ app.post('/aliases', express.json(), (req, res) => {
             return res.status(400).json({ error: 'Aliases must be an object' });
         }
 
-        // Ensure DATA_DIR exists
-        if (!fs.existsSync(DATA_DIR)) {
-            fs.mkdirSync(DATA_DIR, { recursive: true });
+        // Ensure BASE_DATA_DIR exists
+        if (!fs.existsSync(BASE_DATA_DIR)) {
+            fs.mkdirSync(BASE_DATA_DIR, { recursive: true });
         }
 
         // Save global aliases to file
-        const globalAliasesPath = path.join(DATA_DIR, 'global_aliases.json');
+        const globalAliasesPath = path.join(BASE_DATA_DIR, 'global_aliases.json');
         const data = {
             aliases,
             updatedAt: new Date().toISOString()
@@ -1955,14 +1960,14 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
                 const normalizedTranscripts = allTranscripts.map(t => t.toLowerCase().trim());
                 console.log(`💾 [${requestId}] Normalized transcripts to save: ${JSON.stringify(normalizedTranscripts)}`);
 
-                // Ensure DATA_DIR exists
-                if (!fs.existsSync(DATA_DIR)) {
-                    console.log(`💾 [${requestId}] Creating DATA_DIR: ${DATA_DIR}`);
-                    fs.mkdirSync(DATA_DIR, { recursive: true });
+                // Ensure BASE_DATA_DIR exists
+                if (!fs.existsSync(BASE_DATA_DIR)) {
+                    console.log(`💾 [${requestId}] Creating BASE_DATA_DIR: ${BASE_DATA_DIR}`);
+                    fs.mkdirSync(BASE_DATA_DIR, { recursive: true });
                 }
 
                 // Load existing GLOBAL aliases
-                const globalAliasesPath = path.join(DATA_DIR, 'global_aliases.json');
+                const globalAliasesPath = path.join(BASE_DATA_DIR, 'global_aliases.json');
                 console.log(`💾 [${requestId}] Global alias file path: ${globalAliasesPath}`);
                 console.log(`💾 [${requestId}] Absolute path: ${path.resolve(globalAliasesPath)}`);
                 console.log(`💾 [${requestId}] File exists before load: ${fs.existsSync(globalAliasesPath)}`);
