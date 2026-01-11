@@ -763,13 +763,26 @@ app.post('/vision/align-master-list', express.json(), (req, res) => {
 app.get('/aliases', (req, res) => {
     try {
         const globalAliasesPath = path.join(DATA_DIR, 'global_aliases.json');
+        console.log(`\n═══ GET /aliases ═══`);
+        console.log(`📂 File path: ${globalAliasesPath}`);
+        console.log(`📂 Absolute path: ${path.resolve(globalAliasesPath)}`);
+        console.log(`📂 File exists: ${fs.existsSync(globalAliasesPath)}`);
 
         if (!fs.existsSync(globalAliasesPath)) {
+            console.log(`⚠️  File does not exist - returning empty aliases`);
             // Return empty aliases if none saved yet
             return res.json({ aliases: {}, updatedAt: null });
         }
 
-        const data = JSON.parse(fs.readFileSync(globalAliasesPath, 'utf8'));
+        const fileContent = fs.readFileSync(globalAliasesPath, 'utf8');
+        console.log(`📄 File size: ${fileContent.length} bytes`);
+        console.log(`📄 File content preview: ${fileContent.substring(0, 200)}...`);
+
+        const data = JSON.parse(fileContent);
+        const aliasCount = Object.keys(data.aliases || {}).length;
+        console.log(`✅ Returning ${aliasCount} master items with aliases`);
+        console.log(`✅ Alias master items: ${Object.keys(data.aliases || {}).join(', ')}`);
+
         res.json(data);
 
     } catch (error) {
@@ -1927,7 +1940,10 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
         let newlyAddedAliases = [];
         if (targetItem && googleTranscript) {
             try {
-                console.log(`💾 [${requestId}] Auto-saving 3 STT alternatives as GLOBAL aliases for "${targetItem}"...`);
+                console.log(`\n═══ AUTO-SAVE ALIASES ═══`);
+                console.log(`💾 [${requestId}] Target item: "${targetItem}"`);
+                console.log(`💾 [${requestId}] Primary transcript: "${googleTranscript}"`);
+                console.log(`💾 [${requestId}] Alternatives: ${JSON.stringify(googleAlternatives)}`);
 
                 // Collect all 3 transcripts (primary + 2 alternatives)
                 const allTranscripts = [
@@ -1937,23 +1953,37 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
 
                 // Normalize each transcript (lowercase, trim)
                 const normalizedTranscripts = allTranscripts.map(t => t.toLowerCase().trim());
+                console.log(`💾 [${requestId}] Normalized transcripts to save: ${JSON.stringify(normalizedTranscripts)}`);
 
                 // Ensure DATA_DIR exists
                 if (!fs.existsSync(DATA_DIR)) {
+                    console.log(`💾 [${requestId}] Creating DATA_DIR: ${DATA_DIR}`);
                     fs.mkdirSync(DATA_DIR, { recursive: true });
                 }
 
                 // Load existing GLOBAL aliases
                 const globalAliasesPath = path.join(DATA_DIR, 'global_aliases.json');
+                console.log(`💾 [${requestId}] Global alias file path: ${globalAliasesPath}`);
+                console.log(`💾 [${requestId}] Absolute path: ${path.resolve(globalAliasesPath)}`);
+                console.log(`💾 [${requestId}] File exists before load: ${fs.existsSync(globalAliasesPath)}`);
+
                 let existingAliases = {};
                 if (fs.existsSync(globalAliasesPath)) {
-                    const data = JSON.parse(fs.readFileSync(globalAliasesPath, 'utf8'));
+                    const fileContent = fs.readFileSync(globalAliasesPath, 'utf8');
+                    console.log(`💾 [${requestId}] Existing file size: ${fileContent.length} bytes`);
+                    const data = JSON.parse(fileContent);
                     existingAliases = data.aliases || {};
+                    console.log(`💾 [${requestId}] Existing aliases loaded: ${Object.keys(existingAliases).length} items`);
+                } else {
+                    console.log(`💾 [${requestId}] No existing file - starting fresh`);
                 }
 
                 // Initialize target item's aliases array if it doesn't exist
                 if (!existingAliases[targetItem]) {
+                    console.log(`💾 [${requestId}] Creating new array for "${targetItem}"`);
                     existingAliases[targetItem] = [];
+                } else {
+                    console.log(`💾 [${requestId}] "${targetItem}" already has ${existingAliases[targetItem].length} aliases`);
                 }
 
                 // Add new aliases (avoid duplicates)
@@ -1968,19 +1998,31 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
                 });
 
                 // Save updated GLOBAL aliases
+                const aliasData = {
+                    aliases: existingAliases,
+                    updatedAt: new Date().toISOString()
+                };
+                const jsonString = JSON.stringify(aliasData, null, 2);
+                console.log(`💾 [${requestId}] Writing file with ${Object.keys(existingAliases).length} total items`);
+                console.log(`💾 [${requestId}] JSON size: ${jsonString.length} bytes`);
+
+                fs.writeFileSync(globalAliasesPath, jsonString);
+
+                console.log(`💾 [${requestId}] File written successfully`);
+                console.log(`💾 [${requestId}] File exists after write: ${fs.existsSync(globalAliasesPath)}`);
+                console.log(`💾 [${requestId}] File size after write: ${fs.statSync(globalAliasesPath).size} bytes`);
+
                 if (newlyAddedAliases.length > 0) {
-                    const aliasData = {
-                        aliases: existingAliases,
-                        updatedAt: new Date().toISOString()
-                    };
-                    fs.writeFileSync(globalAliasesPath, JSON.stringify(aliasData, null, 2));
-                    console.log(`💾 [${requestId}] Saved ${newlyAddedAliases.length} new GLOBAL aliases for "${targetItem}"`);
+                    console.log(`✅ [${requestId}] Saved ${newlyAddedAliases.length} NEW aliases for "${targetItem}"`);
                 } else {
-                    console.log(`💾 [${requestId}] No new aliases to save (all were duplicates)`);
+                    console.log(`⏭️  [${requestId}] No new aliases (${normalizedTranscripts.length} were duplicates)`);
                 }
 
+                console.log(`═══ END AUTO-SAVE ═══\n`);
+
             } catch (aliasError) {
-                console.error(`⚠️  [${requestId}] Auto-save GLOBAL aliases failed:`, aliasError.message);
+                console.error(`❌ [${requestId}] Auto-save GLOBAL aliases FAILED:`, aliasError.message);
+                console.error(`❌ [${requestId}] Stack:`, aliasError.stack);
                 // Don't fail the whole request if alias save fails
             }
         }
