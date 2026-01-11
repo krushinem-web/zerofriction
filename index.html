@@ -1867,20 +1867,35 @@ const KrushFlow = {
             }
 
             // Load aliases (try server, fallback to localStorage)
+            console.log(`[Live Count] Loading aliases for project: "${projectName}"`);
             try {
                 const aliasResponse = await fetch(`/projects/${encodeURIComponent(projectName)}/aliases`);
+                console.log('[Live Count] Alias response status:', aliasResponse.status, aliasResponse.statusText);
+
                 if (aliasResponse.ok) {
                     const aliasData = await aliasResponse.json();
+                    console.log('[Live Count] Alias data received:', aliasData);
                     aliases = aliasData.aliases || {};
+                    console.log('[Live Count] Aliases loaded:', Object.keys(aliases).length, 'master items');
+                    console.log('[Live Count] Alias details:', JSON.stringify(aliases, null, 2));
+                } else {
+                    console.warn('[Live Count] Alias response not OK:', aliasResponse.status);
                 }
             } catch (error) {
-                console.log('[Live Count] Aliases not loaded from server');
+                console.error('[Live Count] Aliases load error:', error);
             }
 
             // Set up Live Count state
             this.countingProject = projectName;
             this.countingItems = masterList;
             this.voiceMappingAliases = aliases;
+
+            console.log('[Live Count] === SETUP COMPLETE ===');
+            console.log('[Live Count] Project:', this.countingProject);
+            console.log('[Live Count] Master list items:', this.countingItems.length);
+            console.log('[Live Count] Master list:', this.countingItems);
+            console.log('[Live Count] Aliases structure:', this.voiceMappingAliases);
+            console.log('[Live Count] Total alias mappings:', Object.keys(this.voiceMappingAliases).length);
 
             // Initialize all counts to 0
             this.countingCounts = {};
@@ -2808,6 +2823,8 @@ const KrushFlow = {
             formData.append('aliasDictionary', JSON.stringify(this.voiceMappingAliases || {}));
 
             console.log('[Transcribe] Sending request to /audio/transcribe-live-count');
+            console.log('[Transcribe] Sending master list:', this.countingItems.length, 'items');
+            console.log('[Transcribe] Sending aliases:', Object.keys(this.voiceMappingAliases || {}).length, 'mappings');
 
             const response = await fetch('/audio/transcribe-live-count', {
                 method: 'POST',
@@ -3095,25 +3112,48 @@ const KrushFlow = {
         }
 
         try {
+            const payload = {
+                transcript: transcript,
+                sttTopChoices: this.lastSttTopChoices || [],
+                parsedSlots: parsedSlots,
+                masterList: this.countingItems,
+                aliasDictionary: this.voiceMappingAliases || {},
+                recentContext: this.recentCountedItems || [],
+                allowAliasAutoSave: true
+            };
+
+            console.log('[Parse] === SENDING TO CLAUDE API ===');
+            console.log('[Parse] Transcript:', transcript);
+            console.log('[Parse] STT top choices:', this.lastSttTopChoices);
+            console.log('[Parse] Parsed slots:', parsedSlots);
+            console.log('[Parse] Master list:', this.countingItems.length, 'items');
+            console.log('[Parse] Aliases:', Object.keys(this.voiceMappingAliases || {}).length, 'mappings');
+            console.log('[Parse] Full aliases:', this.voiceMappingAliases);
+            console.log('[Parse] Recent context:', this.recentCountedItems);
+            console.log('[Parse] Complete payload:', JSON.stringify(payload, null, 2));
+
             const response = await fetch('/live-count/parse-command', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    transcript: transcript,
-                    sttTopChoices: this.lastSttTopChoices || [],
-                    parsedSlots: parsedSlots,
-                    masterList: this.countingItems,
-                    aliasDictionary: this.voiceMappingAliases || {},
-                    recentContext: this.recentCountedItems || [],
-                    allowAliasAutoSave: true
-                })
+                body: JSON.stringify(payload)
             });
 
+            console.log('[Parse] Response status:', response.status, response.statusText);
+
             if (!response.ok) {
-                throw new Error('Server error');
+                const errorText = await response.text();
+                console.error('[Parse] Server error response:', errorText);
+                throw new Error('Server error: ' + response.status);
             }
 
             const result = await response.json();
+            console.log('[Parse] === RECEIVED FROM CLAUDE API ===');
+            console.log('[Parse] Complete result:', JSON.stringify(result, null, 2));
+            console.log('[Parse] Success:', result.success);
+            console.log('[Parse] Item:', result.item || result.canonicalItem);
+            console.log('[Parse] Operation:', result.operation);
+            console.log('[Parse] Quantity:', result.quantity);
+            console.log('[Parse] Error:', result.error);
             return result;
 
         } catch (error) {
