@@ -2445,16 +2445,45 @@ const KrushFlow = {
         return ''; // Let browser choose
     },
 
+    // TURN CLIPPING CONSTANTS (per specification)
+    CLIP_MIN_SPEECH_MS: 300,
+    CLIP_MAX_MS: 15000,
+    CLIP_SILENCE_IGNORE_MS: 400,
+    CLIP_SILENCE_FINALIZE_MS: 900,
+    VAD_THRESHOLD: 0.015,
+    VAD_CHECK_INTERVAL_MS: 50,
+
+    // Turn clipping state machine states
+    CLIP_STATE: {
+        IDLE_LISTENING: 'IDLE_LISTENING',
+        IN_SPEECH: 'IN_SPEECH',
+        IN_SILENCE: 'IN_SILENCE',
+        FINALIZING: 'FINALIZING'
+    },
+
+    // Turn clipping state variables
+    clipState: 'IDLE_LISTENING',
+    speechActiveMs: 0,
+    silenceMs: 0,
+    clipDurationMs: 0,
+    clipBuffer: [],
+    lastVadCheckTime: 0,
+    lastStateTransitionTime: 0,
+    vadCheckInterval: null,
+    audioContext: null,
+    analyserNode: null,
+    sessionClipCount: 0,
+
     toggleVoiceCounting: function() {
         if (this.isListening) {
-            this.stopVoiceRecording();
+            this.stopVoiceSession();
         } else {
-            this.startVoiceRecording();
+            this.startVoiceSession();
         }
     },
 
-    // Start voice recording using MediaRecorder
-    startVoiceRecording: async function() {
+    // Start voice session with turn clipping
+    startVoiceSession: async function() {
         if (this.countingItems.length === 0) {
             alert('No items loaded. Please select a project first or load test data.');
             return;
@@ -2470,6 +2499,13 @@ const KrushFlow = {
             // Request microphone access
             this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
+            // Set up Web Audio API for VAD
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const source = this.audioContext.createMediaStreamSource(this.mediaStream);
+            this.analyserNode = this.audioContext.createAnalyser();
+            this.analyserNode.fftSize = 2048;
+            source.connect(this.analyserNode);
+
             // Get supported MIME type
             this.recordingMimeType = this.getSupportedMimeType();
 
@@ -2479,67 +2515,63 @@ const KrushFlow = {
 
             this.audioChunks = [];
 
-            // Collect audio data
+            // Collect audio data continuously
             this.mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
                     this.audioChunks.push(event.data);
+
+                    // If we're in a clip (not IDLE_LISTENING), add to clip buffer
+                    if (this.clipState !== this.CLIP_STATE.IDLE_LISTENING && this.clipState !== this.CLIP_STATE.FINALIZING) {
+                        this.clipBuffer.push(event.data);
+                    }
                 }
             };
 
-            // Process audio when recording stops
-            this.mediaRecorder.onstop = async () => {
-                if (this.audioChunks.length === 0) return;
-
-                const audioBlob = new Blob(this.audioChunks, { type: this.recordingMimeType || 'audio/webm' });
-                this.audioChunks = [];
-
-                console.log('[Audio] Sending audio to Google STT:', audioBlob.size, 'bytes');
-
-                // Send to server for transcription
-                await this.transcribeAudio(audioBlob);
-            };
-
-            // Start recording
-            this.mediaRecorder.start();
+            // Start recording continuously (don't stop/start)
+            this.mediaRecorder.start(100); // Capture in 100ms chunks for responsiveness
             this.isListening = true;
+            this.sessionClipCount = 0;
+
+            // Initialize state machine
+            this.clipState = this.CLIP_STATE.IDLE_LISTENING;
+            this.speechActiveMs = 0;
+            this.silenceMs = 0;
+            this.clipDurationMs = 0;
+            this.clipBuffer = [];
+            this.lastVadCheckTime = performance.now();
+            this.lastStateTransitionTime = performance.now();
 
             // Update UI
             document.getElementById('count-mic-btn').classList.add('recording');
-            document.getElementById('count-voice-status').textContent = '🔴 Recording... (tap to stop)';
-            document.getElementById('count-transcript').textContent = '';
-            document.getElementById('count-parsed').textContent = '';
+            this.updateClipStateUI();
 
-            // Send audio chunks every 3 seconds for continuous transcription
-            this.recordingInterval = setInterval(() => {
-                if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
-                    this.mediaRecorder.stop();
-                    // Restart recording immediately for continuous flow
-                    setTimeout(() => {
-                        if (this.isListening) {
-                            this.audioChunks = [];
-                            this.mediaRecorder.start();
-                        }
-                    }, 100);
-                }
-            }, 3000);
+            // Start VAD check loop
+            this.vadCheckInterval = setInterval(() => {
+                this.runVadCheck();
+            }, this.VAD_CHECK_INTERVAL_MS);
 
-            console.log('[Audio] Recording started');
+            console.log('[Turn Clipping] Session started');
 
         } catch (error) {
-            console.error('[Audio] Failed to start recording:', error);
+            console.error('[Turn Clipping] Failed to start session:', error);
             alert('Could not access microphone. Please grant permission and try again.');
-            this.stopVoiceRecording();
+            this.stopVoiceSession();
         }
     },
 
-    // Stop voice recording
-    stopVoiceRecording: function() {
+    // Stop voice session
+    stopVoiceSession: function() {
         this.isListening = false;
 
-        // Stop recording interval
-        if (this.recordingInterval) {
-            clearInterval(this.recordingInterval);
-            this.recordingInterval = null;
+        // Stop VAD check loop
+        if (this.vadCheckInterval) {
+            clearInterval(this.vadCheckInterval);
+            this.vadCheckInterval = null;
+        }
+
+        // Finalize any active clip before stopping
+        if (this.clipState === this.CLIP_STATE.IN_SPEECH || this.clipState === this.CLIP_STATE.IN_SILENCE) {
+            this.finalizeClip();
         }
 
         // Stop MediaRecorder
@@ -2553,10 +2585,190 @@ const KrushFlow = {
             this.mediaStream = null;
         }
 
+        // Close audio context
+        if (this.audioContext) {
+            this.audioContext.close();
+            this.audioContext = null;
+        }
+
+        // Reset state
+        this.clipState = this.CLIP_STATE.IDLE_LISTENING;
+        this.clipBuffer = [];
+        this.audioChunks = [];
+
         // Update UI
         document.getElementById('count-mic-btn').classList.remove('recording');
-        document.getElementById('count-voice-status').textContent = 'Tap mic to start recording';
-        console.log('[Audio] Recording stopped');
+        document.getElementById('count-voice-status').textContent = 'Tap mic to start session';
+        document.getElementById('count-transcript').textContent = '';
+        document.getElementById('count-parsed').textContent = '';
+
+        console.log('[Turn Clipping] Session stopped. Total clips:', this.sessionClipCount);
+    },
+
+    // VAD Check Loop (runs every 50ms)
+    runVadCheck: function() {
+        const currentTime = performance.now();
+        const isSpeechDetected = this.calculateVAD();
+        const deltaMs = currentTime - this.lastStateTransitionTime;
+
+        switch (this.clipState) {
+            case this.CLIP_STATE.IDLE_LISTENING:
+                if (isSpeechDetected) {
+                    this.startNewClip();
+                    this.clipState = this.CLIP_STATE.IN_SPEECH;
+                    this.lastStateTransitionTime = currentTime;
+                    this.updateClipStateUI();
+                }
+                break;
+
+            case this.CLIP_STATE.IN_SPEECH:
+                this.clipDurationMs += deltaMs;
+
+                if (isSpeechDetected) {
+                    this.speechActiveMs += deltaMs;
+                    this.silenceMs = 0;
+
+                    // Check for max clip length
+                    if (this.clipDurationMs >= this.CLIP_MAX_MS) {
+                        console.log('[Turn Clipping] Max clip length reached, force finalizing');
+                        this.clipState = this.CLIP_STATE.FINALIZING;
+                        this.lastStateTransitionTime = currentTime;
+                        this.finalizeClip();
+                    }
+                } else {
+                    // Speech stopped
+                    this.clipState = this.CLIP_STATE.IN_SILENCE;
+                    this.lastStateTransitionTime = currentTime;
+                    this.updateClipStateUI();
+                }
+                break;
+
+            case this.CLIP_STATE.IN_SILENCE:
+                this.clipDurationMs += deltaMs;
+                this.silenceMs += deltaMs;
+
+                if (isSpeechDetected) {
+                    // Speech resumed
+                    console.log('[Turn Clipping] Speech resumed after', this.silenceMs.toFixed(0), 'ms silence');
+                    this.silenceMs = 0;
+                    this.clipState = this.CLIP_STATE.IN_SPEECH;
+                    this.lastStateTransitionTime = currentTime;
+                    this.updateClipStateUI();
+                } else if (this.silenceMs >= this.CLIP_SILENCE_FINALIZE_MS) {
+                    // Long pause - finalize
+                    console.log('[Turn Clipping] Silence threshold reached, finalizing clip');
+                    this.clipState = this.CLIP_STATE.FINALIZING;
+                    this.lastStateTransitionTime = currentTime;
+                    this.finalizeClip();
+                }
+                // Else: stay in IN_SILENCE (short or tentative pause)
+                break;
+
+            case this.CLIP_STATE.FINALIZING:
+                // Handled by finalizeClip(), will transition to IDLE_LISTENING
+                break;
+        }
+
+        this.lastStateTransitionTime = currentTime;
+    },
+
+    // Calculate VAD (Voice Activity Detection)
+    calculateVAD: function() {
+        if (!this.analyserNode) return false;
+
+        const frequencyData = new Uint8Array(this.analyserNode.frequencyBinCount);
+        this.analyserNode.getByteFrequencyData(frequencyData);
+
+        // Focus on speech frequency range (85Hz - 3000Hz)
+        // For 2048 FFT at 48kHz sample rate:
+        // bin = frequency * fftSize / sampleRate
+        // 85Hz -> bin ~3.6 (use 4)
+        // 3000Hz -> bin 128
+        const sampleRate = this.audioContext.sampleRate;
+        const binSize = sampleRate / this.analyserNode.fftSize;
+        const startBin = Math.floor(85 / binSize);
+        const endBin = Math.ceil(3000 / binSize);
+
+        let speechEnergy = 0;
+        let binCount = 0;
+
+        for (let i = startBin; i < endBin && i < frequencyData.length; i++) {
+            speechEnergy += frequencyData[i];
+            binCount++;
+        }
+
+        const avgSpeechEnergy = binCount > 0 ? (speechEnergy / binCount / 255.0) : 0;
+
+        return avgSpeechEnergy > this.VAD_THRESHOLD;
+    },
+
+    // Start new clip
+    startNewClip: function() {
+        this.speechActiveMs = 0;
+        this.silenceMs = 0;
+        this.clipDurationMs = 0;
+        this.clipBuffer = [];
+
+        console.log('[Turn Clipping] New clip started');
+    },
+
+    // Finalize clip
+    finalizeClip: async function() {
+        const clipNumber = this.sessionClipCount + 1;
+
+        if (this.speechActiveMs < this.CLIP_MIN_SPEECH_MS) {
+            // Discard - too short (noise)
+            console.log(`[Turn Clipping] Clip ${clipNumber} discarded: only ${this.speechActiveMs.toFixed(0)}ms of speech (min ${this.CLIP_MIN_SPEECH_MS}ms)`);
+            this.clipBuffer = [];
+            this.updateClipStateUI('Clip discarded (too short)');
+
+            // Return to listening
+            this.clipState = this.CLIP_STATE.IDLE_LISTENING;
+            this.lastStateTransitionTime = performance.now();
+            setTimeout(() => this.updateClipStateUI(), 1000);
+        } else {
+            // Send to STT
+            const audioBlob = new Blob(this.clipBuffer, { type: this.recordingMimeType || 'audio/webm' });
+            this.clipBuffer = [];
+            this.sessionClipCount++;
+
+            console.log(`[Turn Clipping] Clip ${clipNumber} finalized: ${this.speechActiveMs.toFixed(0)}ms speech, ${this.clipDurationMs.toFixed(0)}ms total, ${audioBlob.size} bytes`);
+
+            this.updateClipStateUI(`Processing clip ${clipNumber}...`);
+
+            // Send to STT
+            await this.transcribeAudio(audioBlob);
+
+            // Return to listening
+            this.clipState = this.CLIP_STATE.IDLE_LISTENING;
+            this.lastStateTransitionTime = performance.now();
+            this.updateClipStateUI();
+        }
+    },
+
+    // Update UI based on clip state
+    updateClipStateUI: function(customMessage = null) {
+        const statusEl = document.getElementById('count-voice-status');
+
+        if (customMessage) {
+            statusEl.textContent = customMessage;
+            return;
+        }
+
+        switch (this.clipState) {
+            case this.CLIP_STATE.IDLE_LISTENING:
+                statusEl.textContent = `🟢 Listening... (${this.sessionClipCount} clips processed)`;
+                break;
+            case this.CLIP_STATE.IN_SPEECH:
+                statusEl.textContent = `🔴 Recording clip... (${(this.clipDurationMs / 1000).toFixed(1)}s)`;
+                break;
+            case this.CLIP_STATE.IN_SILENCE:
+                statusEl.textContent = `🟡 Pause detected... (${(this.silenceMs / 1000).toFixed(1)}s)`;
+                break;
+            case this.CLIP_STATE.FINALIZING:
+                statusEl.textContent = '⏳ Finalizing clip...';
+                break;
+        }
     },
 
     // Send audio to server for transcription
