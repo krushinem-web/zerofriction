@@ -1460,7 +1460,7 @@
 
             <div class="alignment-section" id="unmatched-section">
                 <h3>⚠ Unmatched Items</h3>
-                <ul class="item-list" id="unmatched-list"></ul>
+                <ul class="item-list" id="scan-unmatched-list"></ul>
             </div>
         </div>
 
@@ -1485,8 +1485,8 @@
             <div style="width: 80px;"></div>
         </div>
 
-        <select id="voice-mapping-project-selector" class="project-selector">
-            <option value="">Select a project...</option>
+        <select id="voice-mapping-project-selector" class="project-selector" onchange="KrushFlow.loadVoiceMappingProject(this.value)">
+            <option value="">📂 Select a master list to train voice aliases...</option>
         </select>
 
         <div id="voice-mapping-content" class="hidden">
@@ -1695,16 +1695,13 @@ const KrushFlow = {
 
         // Populate voice mapping project selector
         const vmSelector = document.getElementById('voice-mapping-project-selector');
-        vmSelector.innerHTML = '<option value="">Select a project...</option>';
+        vmSelector.innerHTML = '<option value="">📂 Select a master list to train voice aliases...</option>';
         this.availableProjects.forEach(project => {
             const option = document.createElement('option');
             option.value = project.name;
             option.textContent = `${project.name} (${project.itemCount} items)`;
             vmSelector.appendChild(option);
         });
-
-        // Add change listener
-        vmSelector.onchange = () => this.loadVoiceMappingProject(vmSelector.value);
 
         // Reset state
         this.voiceMappingMasterList = [];
@@ -2296,7 +2293,7 @@ const KrushFlow = {
         }
 
         // Render unmatched items
-        const unmatchedList = document.getElementById('unmatched-list');
+        const unmatchedList = document.getElementById('scan-unmatched-list');
         if (unmatched.length === 0) {
             unmatchedList.innerHTML = '<li class="empty-state">All items matched!</li>';
         } else {
