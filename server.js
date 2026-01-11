@@ -145,7 +145,7 @@ app.post('/parse', upload.array('images', 30), async (req, res) => {
     }
 });
 
-// LEGACY ENDPOINT - Replaced by /audio/transcribe-live-count (uses OpenAI instead of Google Cloud Speech)
+// LEGACY ENDPOINT - Replaced by /audio/transcribe-live-count (uses Google Cloud Speech)
 // app.post('/daily-count/process', upload.single('audio'), async (req, res) => {
 //     const speechClient = new speech.SpeechClient();
 //     const { projectId } = req.body;
@@ -1300,7 +1300,7 @@ function compareProtocols(transcript, alternatives, masterListCandidates, aliasD
         }
     };
 
-    // PROTOCOL 2: New (Google STT + ChatGPT ambiguity)
+    // PROTOCOL 2: New (Google STT with alternatives)
     const newResult = resolveNewProtocol(transcript, alternatives, masterListCandidates, aliasDictionary, recentContext);
     const newOperation = parseOperation(transcript);
     const newValue = newOperation === 'ERASE' ? 0 : extractNumber(transcript);
@@ -1353,7 +1353,7 @@ function compareProtocols(transcript, alternatives, masterListCandidates, aliasD
 
     return {
         return_current_installed: returnCurrentInstalled,
-        return_new_googleStt_plus_chatgpt_ambiguity: returnNewGoogleStt,
+        return_new_googleStt_with_alternatives: returnNewGoogleStt,
         comparisonFlags: comparisonFlags
     };
 }

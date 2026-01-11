@@ -2485,7 +2485,7 @@ const KrushFlow = {
                 const audioBlob = new Blob(this.audioChunks, { type: this.recordingMimeType || 'audio/webm' });
                 this.audioChunks = [];
 
-                console.log('[Audio] Sending audio to OpenAI:', audioBlob.size, 'bytes');
+                console.log('[Audio] Sending audio to Google STT:', audioBlob.size, 'bytes');
 
                 // Send to server for transcription
                 await this.transcribeAudio(audioBlob);
@@ -3150,7 +3150,7 @@ const KrushFlow = {
             mediaRecorder.onstop = async () => {
                 const audioBlob = new Blob(audioChunks, { type: mimeType || 'audio/webm' });
 
-                console.log('[Re-record] Sending new audio to OpenAI:', audioBlob.size, 'bytes');
+                console.log('[Re-record] Sending new audio to Google STT:', audioBlob.size, 'bytes');
 
                 try {
                     // Transcribe new audio
