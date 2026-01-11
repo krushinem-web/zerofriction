@@ -201,6 +201,7 @@
         html, body {
             overflow-x: hidden;
             max-width: 100vw;
+            overflow-y: auto;
         }
 
         body {
@@ -208,6 +209,7 @@
             color: var(--text-main);
             font-family: 'Inter', sans-serif;
             min-height: 100vh;
+            height: auto;
             background-image:
                 radial-gradient(circle at 0% 0%, rgba(249, 115, 22, 0.05) 0%, transparent 40%),
                 radial-gradient(circle at 100% 100%, rgba(239, 68, 68, 0.05) 0%, transparent 40%);
@@ -231,6 +233,8 @@
             display: none;
             opacity: 0;
             transition: opacity 0.3s ease-in-out;
+            min-height: 100vh;
+            padding-bottom: 2rem;
         }
         .screen.active {
             display: block;
@@ -512,18 +516,19 @@
         /* ========== ITEM LIST ========== */
         .item-list {
             list-style: none;
-            margin-bottom: 6rem;
+            margin-bottom: 10rem;
+            padding-bottom: 2rem;
         }
 
         .item-row {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 1rem;
-            padding: 1rem 1.25rem;
+            padding: 1rem 1.25rem 1.5rem;
             background: var(--glass);
             border: 1px solid var(--glass-border);
             border-radius: 1rem;
-            margin-bottom: 0.625rem;
+            margin-bottom: 1rem;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             animation: slideInUp 0.3s ease-out;
         }
@@ -854,7 +859,9 @@
             align-items: center;
             margin-top: 0.75rem;
             padding-top: 0.75rem;
+            padding-bottom: 0.5rem;
             border-top: 1px solid var(--glass-border);
+            flex-wrap: wrap;
         }
 
         .alias-input {
