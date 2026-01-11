@@ -1911,11 +1911,11 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
             }
         }
 
-        // AUTO-SAVE: Automatically save all 3 STT alternatives as aliases
+        // AUTO-SAVE: Automatically save all 3 STT alternatives as GLOBAL aliases
         let newlyAddedAliases = [];
-        if (projectName && targetItem && googleTranscript) {
+        if (targetItem && googleTranscript) {
             try {
-                console.log(`💾 [${requestId}] Auto-saving 3 STT alternatives as aliases for "${targetItem}"...`);
+                console.log(`💾 [${requestId}] Auto-saving 3 STT alternatives as GLOBAL aliases for "${targetItem}"...`);
 
                 // Collect all 3 transcripts (primary + 2 alternatives)
                 const allTranscripts = [
@@ -1926,16 +1926,16 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
                 // Normalize each transcript (lowercase, trim)
                 const normalizedTranscripts = allTranscripts.map(t => t.toLowerCase().trim());
 
-                // Load existing aliases
-                const projectDir = path.join(DATA_DIR, projectName.replace(/\s+/g, '_'));
-                if (!fs.existsSync(projectDir)) {
-                    fs.mkdirSync(projectDir, { recursive: true });
+                // Ensure DATA_DIR exists
+                if (!fs.existsSync(DATA_DIR)) {
+                    fs.mkdirSync(DATA_DIR, { recursive: true });
                 }
 
-                const aliasesPath = path.join(projectDir, 'aliases.json');
+                // Load existing GLOBAL aliases
+                const globalAliasesPath = path.join(DATA_DIR, 'global_aliases.json');
                 let existingAliases = {};
-                if (fs.existsSync(aliasesPath)) {
-                    const data = JSON.parse(fs.readFileSync(aliasesPath, 'utf8'));
+                if (fs.existsSync(globalAliasesPath)) {
+                    const data = JSON.parse(fs.readFileSync(globalAliasesPath, 'utf8'));
                     existingAliases = data.aliases || {};
                 }
 
@@ -1955,21 +1955,20 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
                     }
                 });
 
-                // Save updated aliases
+                // Save updated GLOBAL aliases
                 if (newlyAddedAliases.length > 0) {
                     const aliasData = {
-                        projectName,
                         aliases: existingAliases,
                         updatedAt: new Date().toISOString()
                     };
-                    fs.writeFileSync(aliasesPath, JSON.stringify(aliasData, null, 2));
-                    console.log(`💾 [${requestId}] Saved ${newlyAddedAliases.length} new aliases for "${targetItem}"`);
+                    fs.writeFileSync(globalAliasesPath, JSON.stringify(aliasData, null, 2));
+                    console.log(`💾 [${requestId}] Saved ${newlyAddedAliases.length} new GLOBAL aliases for "${targetItem}"`);
                 } else {
                     console.log(`💾 [${requestId}] No new aliases to save (all were duplicates)`);
                 }
 
             } catch (aliasError) {
-                console.error(`⚠️  [${requestId}] Auto-save aliases failed:`, aliasError.message);
+                console.error(`⚠️  [${requestId}] Auto-save GLOBAL aliases failed:`, aliasError.message);
                 // Don't fail the whole request if alias save fails
             }
         }
