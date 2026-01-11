@@ -190,12 +190,17 @@
         }
 
         /* Reset & Base */
-        * { 
-            margin: 0; 
-            padding: 0; 
-            box-sizing: border-box; 
-            -webkit-tap-highlight-color: transparent; 
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
             touch-action: manipulation;
+        }
+
+        html, body {
+            overflow-x: hidden;
+            max-width: 100vw;
         }
 
         body {
@@ -270,10 +275,10 @@
         }
 
         /* ========== MODE GRID & CARDS ========== */
-        .mode-grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); 
-            gap: 1.5rem; 
+        .mode-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+            gap: 1.5rem;
             margin-top: 2rem;
         }
 
@@ -3638,8 +3643,8 @@ const KrushFlow = {
                             let statusHTML = `<div style="font-size: 0.9em;">`;
                             statusHTML += `<div style="margin-bottom: 0.75rem;"><strong>Training alias for:</strong> ${this.escapeHtml(masterItem)}</div>`;
 
-                            // Show 3 Google STT versions side-by-side
-                            statusHTML += `<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem;">`;
+                            // Show 3 Google STT versions stacked vertically (no horizontal scroll)
+                            statusHTML += `<div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">`;
 
                             // Version 1 (Primary)
                             statusHTML += `<div style="border: 2px solid #3b82f6; padding: 0.75rem; border-radius: 6px; background: rgba(59, 130, 246, 0.05);">`;
