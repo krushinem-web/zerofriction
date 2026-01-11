@@ -2680,7 +2680,10 @@ const KrushFlow = {
 
     // Calculate VAD (Voice Activity Detection)
     calculateVAD: function() {
-        if (!this.analyserNode) return false;
+        if (!this.analyserNode) {
+            console.warn('[VAD] No analyserNode available');
+            return false;
+        }
 
         const frequencyData = new Uint8Array(this.analyserNode.frequencyBinCount);
         this.analyserNode.getByteFrequencyData(frequencyData);
@@ -2704,6 +2707,12 @@ const KrushFlow = {
         }
 
         const avgSpeechEnergy = binCount > 0 ? (speechEnergy / binCount / 255.0) : 0;
+
+        // Debug logging every 1 second
+        if (!this.lastVadLogTime || (performance.now() - this.lastVadLogTime > 1000)) {
+            console.log(`[VAD] Energy: ${avgSpeechEnergy.toFixed(4)} | Threshold: ${this.VAD_THRESHOLD} | Detected: ${avgSpeechEnergy > this.VAD_THRESHOLD ? 'YES' : 'NO'} | State: ${this.clipState}`);
+            this.lastVadLogTime = performance.now();
+        }
 
         return avgSpeechEnergy > this.VAD_THRESHOLD;
     },
@@ -2779,22 +2788,31 @@ const KrushFlow = {
 
     // Send audio to server for transcription
     transcribeAudio: async function(audioBlob) {
+        console.log('[Transcribe] Starting transcription, blob size:', audioBlob.size, 'bytes');
+
         try {
             const formData = new FormData();
             formData.append('audio', audioBlob, 'audio.webm');
             formData.append('masterListCandidates', JSON.stringify(this.countingItems));
             formData.append('aliasDictionary', JSON.stringify(this.voiceMappingAliases || {}));
 
+            console.log('[Transcribe] Sending request to /audio/transcribe-live-count');
+
             const response = await fetch('/audio/transcribe-live-count', {
                 method: 'POST',
                 body: formData
             });
 
+            console.log('[Transcribe] Response status:', response.status, response.statusText);
+
             if (!response.ok) {
-                throw new Error('Transcription failed');
+                const errorText = await response.text();
+                console.error('[Transcribe] Server error:', errorText);
+                throw new Error('Transcription failed: ' + response.status);
             }
 
             const result = await response.json();
+            console.log('[Transcribe] Result:', result);
 
             if (result.success && result.transcript) {
                 const transcript = result.transcript.trim();
@@ -2819,11 +2837,16 @@ const KrushFlow = {
                             });
                         }, idx * 100);
                     });
+                } else {
+                    console.warn('[Transcribe] Empty transcript received');
                 }
+            } else {
+                console.warn('[Transcribe] No success or transcript in result:', result);
             }
 
         } catch (error) {
-            console.error('[Audio] Transcription error:', error);
+            console.error('[Transcribe] ERROR:', error);
+            console.error('[Transcribe] Error stack:', error.stack);
             // Don't show errors to user - just log and continue listening
         }
     },
