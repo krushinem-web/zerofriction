@@ -1217,6 +1217,92 @@ function resolveNewProtocol(transcript, alternatives, masterListCandidates, alia
     };
 }
 
+// Side-by-Side Protocol Comparator for Voice Mapping (ALWAYS maps to target item)
+function compareProtocolsForVoiceMapping(transcript, alternatives, targetItem, aliasDictionary, rawAudioMeta) {
+    // In Voice Mapping, we're TRAINING - whatever is said should map to the target item
+    // We just compare HOW the two protocols would transcribe/parse it
+
+    const operation = parseOperation(transcript);
+    const value = operation === 'ERASE' ? 0 : extractNumber(transcript);
+
+    // PROTOCOL 1: Current Installed
+    // Simple match - just shows the transcript
+    const returnCurrentInstalled = {
+        recording: {
+            endOnPauseRequired: true,
+            vadDetected: rawAudioMeta?.vadPauseMs != null,
+            vadPauseMs: rawAudioMeta?.vadPauseMs || null,
+            vadAssumed: rawAudioMeta?.vadPauseMs == null
+        },
+        inputUsed: {
+            transcript: transcript,
+            confidence: null
+        },
+        resolution: {
+            canonicalItem: targetItem,  // ALWAYS the target item in Voice Mapping
+            operation: operation,
+            value: value,
+            confidence: 1.0,  // We're training, so confidence is always 100%
+            needsConfirmation: false,  // No confirmation needed in training mode
+            topChoices: [targetItem, targetItem, targetItem]
+        },
+        alias: {
+            shouldAutoSave: true,  // Always save in Voice Mapping
+            aliasToSave: transcript.toLowerCase().trim()
+        }
+    };
+
+    // PROTOCOL 2: New (Google STT + alternatives)
+    // Uses alternatives for better transcription
+    const returnNewGoogleStt = {
+        recording: {
+            endOnPauseRequired: true,
+            vadDetected: rawAudioMeta?.vadPauseMs != null,
+            vadPauseMs: rawAudioMeta?.vadPauseMs || null,
+            vadAssumed: rawAudioMeta?.vadPauseMs == null,
+            endOfUtteranceMs: rawAudioMeta?.endOfUtteranceMs || null
+        },
+        inputUsed: {
+            transcript: transcript,
+            alternativesUsed: alternatives.slice(0, 3),
+            wordConfidencesPresent: false
+        },
+        resolution: {
+            canonicalItem: targetItem,  // ALWAYS the target item in Voice Mapping
+            operation: operation,
+            value: value,
+            confidence: 1.0,  // We're training, so confidence is always 100%
+            needsConfirmation: false,  // No confirmation needed in training mode
+            topChoices: [targetItem, targetItem, targetItem]
+        },
+        alias: {
+            shouldAutoSave: true,  // Always save in Voice Mapping
+            aliasToSave: transcript.toLowerCase().trim()
+        }
+    };
+
+    // Comparison flags - mostly about transcription differences
+    const comparisonFlags = {
+        differentCanonicalItem: false,  // Always the same (target item)
+        differentOperation: false,
+        differentValue: false,
+        currentWouldSilentlyCommit: true,  // Both auto-save in Voice Mapping
+        newWouldRequestConfirmation: false,
+        aliasWouldBeSavedInNewButNotCurrent: false,
+        notes: [
+            'Voice Mapping mode: Training alias for "' + targetItem + '"',
+            'Transcript: "' + transcript + '"',
+            alternatives.length > 0 ? 'Alternatives: ' + alternatives.join(', ') : 'No alternatives available'
+        ]
+    };
+
+    return {
+        return_current_installed: returnCurrentInstalled,
+        return_new_googleStt_plus_chatgpt_ambiguity: returnNewGoogleStt,
+        comparisonFlags: comparisonFlags
+    };
+}
+
 // Side-by-Side Protocol Comparator (implemented directly, no file reading)
 function compareProtocols(transcript, alternatives, masterListCandidates, aliasDictionary, recentContext, rawAudioMeta) {
     // PROTOCOL 1: Current Installed
@@ -1679,15 +1765,45 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
 
         const { transcript, alternatives } = googleSttResponse;
 
-        // If we have master list data, run protocol comparison
+        // Run protocol comparison
         let protocolComparison = null;
-        if (masterListCandidates && masterListCandidates.length > 0) {
+        if (targetItem) {
+            // Voice Mapping mode - use special comparator that ALWAYS maps to target item
+            console.log(`🔬 [${requestId}] Running Voice Mapping protocol comparison for "${targetItem}"...`);
+
+            try {
+                const rawAudioMeta = {
+                    sampleRate: 48000,
+                    durationMs: Math.round((req.file.size / 48000) * 1000),
+                    vadPauseMs: null,
+                    noiseLevel: null,
+                    deviceHints: null
+                };
+
+                protocolComparison = compareProtocolsForVoiceMapping(
+                    transcript,
+                    alternatives,
+                    targetItem,
+                    aliasDictionary,
+                    rawAudioMeta
+                );
+
+                console.log(`✅ [${requestId}] Voice Mapping comparison complete`);
+                console.log(`🔬 [${requestId}] Training alias "${transcript}" → "${targetItem}"`);
+                console.log(`🔬 [${requestId}] Alternatives: ${alternatives.join(', ')}`);
+
+            } catch (error) {
+                console.error(`⚠️  [${requestId}] Protocol comparison failed:`, error.message);
+                // Don't fail the whole request if comparison fails
+            }
+        } else if (masterListCandidates && masterListCandidates.length > 0) {
+            // Live Count mode - use regular comparator
             console.log(`🔬 [${requestId}] Running side-by-side protocol comparison...`);
 
             try {
                 const rawAudioMeta = {
                     sampleRate: 48000,
-                    durationMs: Math.round((req.file.size / 48000) * 1000), // Rough estimate
+                    durationMs: Math.round((req.file.size / 48000) * 1000),
                     vadPauseMs: null,
                     noiseLevel: null,
                     deviceHints: null
@@ -1698,7 +1814,7 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
                     alternatives,
                     masterListCandidates,
                     aliasDictionary,
-                    targetItem ? { lastItem: targetItem } : null,
+                    null,
                     rawAudioMeta
                 );
 
