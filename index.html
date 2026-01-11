@@ -2603,10 +2603,15 @@ const KrushFlow = {
         this.audioChunks = [];
 
         // Update UI
-        document.getElementById('count-mic-btn').classList.remove('recording');
-        document.getElementById('count-voice-status').textContent = 'Tap mic to start session';
-        document.getElementById('count-transcript').textContent = '';
-        document.getElementById('count-parsed').textContent = '';
+        const micBtn = document.getElementById('count-mic-btn');
+        const statusEl = document.getElementById('count-voice-status');
+        const transcriptEl = document.getElementById('count-transcript');
+        const parsedEl = document.getElementById('count-parsed');
+
+        if (micBtn) micBtn.classList.remove('recording');
+        if (statusEl) statusEl.textContent = 'Tap mic to start session';
+        if (transcriptEl) transcriptEl.textContent = '';
+        if (parsedEl) parsedEl.textContent = '';
 
         console.log('[Turn Clipping] Session stopped. Total clips:', this.sessionClipCount);
     },
@@ -2765,6 +2770,12 @@ const KrushFlow = {
     updateClipStateUI: function(customMessage = null) {
         const statusEl = document.getElementById('count-voice-status');
 
+        // Add null check to prevent silent failures
+        if (!statusEl) {
+            console.warn('[UI] count-voice-status element not found - controls may be hidden');
+            return;
+        }
+
         if (customMessage) {
             statusEl.textContent = customMessage;
             return;
@@ -2894,7 +2905,12 @@ const KrushFlow = {
         console.log('[Voice Command] Raw transcript:', transcript);
 
         // Show transcript immediately - don't block UI
-        document.getElementById('count-transcript').textContent = `Heard: "${transcript}"`;
+        const transcriptEl = document.getElementById('count-transcript');
+        if (transcriptEl) {
+            transcriptEl.textContent = `Heard: "${transcript}"`;
+        } else {
+            console.warn('[UI] count-transcript element not found');
+        }
 
         try {
             // Use Claude to parse the voice command
@@ -2915,20 +2931,29 @@ const KrushFlow = {
                     audioBlob: audioBlob
                 });
 
-                document.getElementById('count-parsed').textContent = '⚠️ Queued';
+                const parsedEl1 = document.getElementById('count-parsed');
+                if (parsedEl1) {
+                    parsedEl1.textContent = '⚠️ Queued';
+                }
                 this.updateUnmatchedUI();
 
                 // Clear feedback after brief delay
                 setTimeout(() => {
-                    document.getElementById('count-transcript').textContent = '';
-                    document.getElementById('count-parsed').textContent = '';
+                    const transcriptEl1 = document.getElementById('count-transcript');
+                    const parsedEl1 = document.getElementById('count-parsed');
+                    if (transcriptEl1) transcriptEl1.textContent = '';
+                    if (parsedEl1) parsedEl1.textContent = '';
                 }, 1500);
                 return;
             }
 
             // Display parsed command
-            document.getElementById('count-parsed').textContent =
-                `✓ ${parsed.operation} ${parsed.quantity} ${parsed.item}`;
+            const parsedEl = document.getElementById('count-parsed');
+            if (parsedEl) {
+                parsedEl.textContent = `✓ ${parsed.operation} ${parsed.quantity} ${parsed.item}`;
+            } else {
+                console.warn('[UI] count-parsed element not found');
+            }
 
             // Stage 7: Apply state mutation
             this.applyCountMutation(parsed);
@@ -2945,13 +2970,18 @@ const KrushFlow = {
                 audioUrl: audioUrl,
                 audioBlob: audioBlob
             });
-            document.getElementById('count-parsed').textContent = '⚠️ Queued';
+            const parsedEl2 = document.getElementById('count-parsed');
+            if (parsedEl2) {
+                parsedEl2.textContent = '⚠️ Queued';
+            }
             this.updateUnmatchedUI();
 
             // Clear feedback after brief delay
             setTimeout(() => {
-                document.getElementById('count-transcript').textContent = '';
-                document.getElementById('count-parsed').textContent = '';
+                const transcriptEl2 = document.getElementById('count-transcript');
+                const parsedEl2 = document.getElementById('count-parsed');
+                if (transcriptEl2) transcriptEl2.textContent = '';
+                if (parsedEl2) parsedEl2.textContent = '';
             }, 1500);
         }
     },
