@@ -2860,9 +2860,16 @@ const KrushFlow = {
     finalizeClip: async function() {
         const clipNumber = this.sessionClipCount + 1;
 
+        console.log(`[Turn Clipping] Finalizing clip ${clipNumber}:`);
+        console.log(`  - speechActiveMs: ${this.speechActiveMs.toFixed(0)}ms`);
+        console.log(`  - clipDurationMs: ${this.clipDurationMs.toFixed(0)}ms`);
+        console.log(`  - clipBuffer chunks: ${this.clipBuffer.length}`);
+        console.log(`  - clipBuffer sizes:`, this.clipBuffer.map(chunk => chunk.size));
+
         if (this.speechActiveMs < this.CLIP_MIN_SPEECH_MS) {
             // Discard - too short (noise)
             console.log(`[Turn Clipping] Clip ${clipNumber} discarded: only ${this.speechActiveMs.toFixed(0)}ms of speech (min ${this.CLIP_MIN_SPEECH_MS}ms)`);
+            this.addDebugLog(`🗑️ Clip ${clipNumber} Discarded`, `Only ${this.speechActiveMs.toFixed(0)}ms speech (min ${this.CLIP_MIN_SPEECH_MS}ms)`, 'warning');
             this.clipBuffer = [];
             this.updateClipStateUI('Clip discarded (too short)');
 
@@ -2873,11 +2880,26 @@ const KrushFlow = {
         } else {
             // Send to STT
             const audioBlob = new Blob(this.clipBuffer, { type: this.recordingMimeType || 'audio/webm' });
+            const totalChunkSize = this.clipBuffer.reduce((sum, chunk) => sum + chunk.size, 0);
             this.clipBuffer = [];
             this.sessionClipCount++;
 
-            console.log(`[Turn Clipping] Clip ${clipNumber} finalized: ${this.speechActiveMs.toFixed(0)}ms speech, ${this.clipDurationMs.toFixed(0)}ms total, ${audioBlob.size} bytes`);
+            console.log(`[Turn Clipping] Clip ${clipNumber} finalized: ${this.speechActiveMs.toFixed(0)}ms speech, ${this.clipDurationMs.toFixed(0)}ms total`);
+            console.log(`[Turn Clipping] Audio blob: ${audioBlob.size} bytes (chunks totaled ${totalChunkSize} bytes)`);
 
+            if (audioBlob.size === 0) {
+                console.error(`[Turn Clipping] ERROR: Blob size is ZERO! This should not happen.`);
+                this.addDebugLog(`❌ Clip ${clipNumber} ZERO SIZE`, `Blob is 0 bytes - recording failed`, 'error');
+                this.updateClipStateUI(`❌ Recording failed (0 bytes)`);
+
+                // Return to listening
+                this.clipState = this.CLIP_STATE.IDLE_LISTENING;
+                this.lastStateTransitionTime = performance.now();
+                setTimeout(() => this.updateClipStateUI(), 2000);
+                return;
+            }
+
+            this.addDebugLog(`✅ Clip ${clipNumber} Ready`, `${audioBlob.size} bytes, ${this.speechActiveMs.toFixed(0)}ms speech`, 'success');
             this.updateClipStateUI(`Processing clip ${clipNumber}...`);
 
             // Send to STT
