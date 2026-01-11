@@ -2776,6 +2776,8 @@ const KrushFlow = {
         try {
             const formData = new FormData();
             formData.append('audio', audioBlob, 'audio.webm');
+            formData.append('masterListCandidates', JSON.stringify(this.countingItems));
+            formData.append('aliasDictionary', JSON.stringify(this.voiceMappingAliases || {}));
 
             const response = await fetch('/audio/transcribe-live-count', {
                 method: 'POST',
@@ -3001,7 +3003,7 @@ const KrushFlow = {
                 body: JSON.stringify({
                     transcript: transcript,
                     masterList: this.countingItems,
-                    aliases: this.voiceMappingAliases || {}
+                    aliasDictionary: this.voiceMappingAliases || {}
                 })
             });
 
@@ -3376,6 +3378,8 @@ const KrushFlow = {
                     // Transcribe new audio
                     const formData = new FormData();
                     formData.append('audio', audioBlob, 'audio.webm');
+                    formData.append('masterListCandidates', JSON.stringify(KrushFlow.countingItems));
+                    formData.append('aliasDictionary', JSON.stringify(KrushFlow.voiceMappingAliases || {}));
 
                     const response = await fetch('/audio/transcribe-live-count', {
                         method: 'POST',
