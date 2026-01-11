@@ -2651,8 +2651,16 @@ const KrushFlow = {
                     this.audioChunks.push(event.data);
 
                     // If we're in a clip (not IDLE_LISTENING), add to clip buffer
-                    if (this.clipState !== this.CLIP_STATE.IDLE_LISTENING && this.clipState !== this.CLIP_STATE.FINALIZING) {
+                    // IMPORTANT: Also allow during FINALIZING if requestDataPending flag is set (for final chunk)
+                    if (this.clipState !== this.CLIP_STATE.IDLE_LISTENING &&
+                        (this.clipState !== this.CLIP_STATE.FINALIZING || this.requestDataPending)) {
                         this.clipBuffer.push(event.data);
+
+                        // Clear flag after capturing the final chunk
+                        if (this.requestDataPending) {
+                            console.log(`[Turn Clipping] Captured final chunk via requestData(): ${event.data.size} bytes`);
+                            this.requestDataPending = false;
+                        }
                     }
                 }
             };
@@ -2668,6 +2676,7 @@ const KrushFlow = {
             this.silenceMs = 0;
             this.clipDurationMs = 0;
             this.clipBuffer = [];
+            this.requestDataPending = false;
             this.lastVadCheckTime = performance.now();
             this.lastStateTransitionTime = performance.now();
 
@@ -2878,6 +2887,20 @@ const KrushFlow = {
             this.lastStateTransitionTime = performance.now();
             setTimeout(() => this.updateClipStateUI(), 1000);
         } else {
+            // CRITICAL FIX: Request data from MediaRecorder to flush any pending audio
+            // This ensures all audio data is properly finalized before we create the blob
+            if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+                console.log(`[Turn Clipping] Calling requestData() to flush pending audio before creating blob`);
+                // Set flag to allow the final chunk to be added to clipBuffer even though state is FINALIZING
+                this.requestDataPending = true;
+                this.mediaRecorder.requestData();
+            }
+
+            // Wait a brief moment for requestData() to trigger ondataavailable
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            console.log(`[Turn Clipping] After requestData() wait: clipBuffer has ${this.clipBuffer.length} chunks`);
+
             // Send to STT
             const audioBlob = new Blob(this.clipBuffer, { type: this.recordingMimeType || 'audio/webm' });
             const totalChunkSize = this.clipBuffer.reduce((sum, chunk) => sum + chunk.size, 0);
