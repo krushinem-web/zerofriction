@@ -2915,6 +2915,9 @@ const KrushFlow = {
     // Send audio to server for transcription
     transcribeAudio: async function(audioBlob) {
         console.log('[Transcribe] Starting transcription, blob size:', audioBlob.size, 'bytes');
+
+        // Show BIG status update
+        this.updateClipStateUI(`📤 SENDING AUDIO TO SERVER... (${audioBlob.size} bytes)`);
         this.addDebugLog('🎙️ Sending Audio', `Size: ${audioBlob.size} bytes`, 'info');
 
         try {
@@ -2948,6 +2951,9 @@ const KrushFlow = {
                 const transcript = result.transcript.trim();
                 console.log('[Audio] Transcript received:', transcript);
 
+                // Show BIG status update
+                this.updateClipStateUI(`✅ TRANSCRIBED: "${transcript}"`);
+
                 // Show in debug panel
                 this.addDebugLog('📝 Transcript', transcript, 'success');
                 if (result.alternatives && result.alternatives.length > 0) {
@@ -2978,12 +2984,16 @@ const KrushFlow = {
                 }
             } else {
                 console.warn('[Transcribe] No success or transcript in result:', result);
+                this.updateClipStateUI(`❌ NO TRANSCRIPT RECEIVED`);
+                this.addDebugLog('❌ Transcription Failed', 'No transcript in response', 'error');
             }
 
         } catch (error) {
             console.error('[Transcribe] ERROR:', error);
             console.error('[Transcribe] Error stack:', error.stack);
-            // Don't show errors to user - just log and continue listening
+            this.updateClipStateUI(`❌ TRANSCRIPTION ERROR: ${error.message}`);
+            this.addDebugLog('❌ Transcription Error', error.message, 'error');
+            // Don't block - continue listening
         }
     },
 
@@ -3029,19 +3039,31 @@ const KrushFlow = {
     processVoiceCommand: async function(transcript, audioBlob = null) {
         console.log('[Voice Command] Raw transcript:', transcript);
 
+        // Show BIG OBVIOUS status update
+        this.updateClipStateUI(`📝 HEARD: "${transcript}"`);
+
         // Show transcript immediately - don't block UI
         const transcriptEl = document.getElementById('count-transcript');
         if (transcriptEl) {
             transcriptEl.textContent = `Heard: "${transcript}"`;
+            transcriptEl.style.fontSize = '1.2rem';
+            transcriptEl.style.fontWeight = 'bold';
+            transcriptEl.style.color = '#10b981';
         } else {
             console.warn('[UI] count-transcript element not found');
         }
 
         try {
+            // Show we're parsing
+            this.updateClipStateUI(`🤖 PARSING: "${transcript}"`);
+
             // Use Claude to parse the voice command
             const parsed = await this.parseVoiceCommand(transcript);
 
             if (!parsed.success) {
+                // Show parsing failed
+                this.updateClipStateUI(`⚠️ NOT MATCHED: "${transcript}"`);
+
                 // Queue unmatched item - NEVER stop counting
                 console.log('[Voice Command] Queueing unmatched:', transcript);
 
@@ -3072,10 +3094,16 @@ const KrushFlow = {
                 return;
             }
 
+            // Show success
+            this.updateClipStateUI(`✅ ${parsed.operation} ${parsed.quantity} ${parsed.item}`);
+
             // Display parsed command
             const parsedEl = document.getElementById('count-parsed');
             if (parsedEl) {
                 parsedEl.textContent = `✓ ${parsed.operation} ${parsed.quantity} ${parsed.item}`;
+                parsedEl.style.fontSize = '1.2rem';
+                parsedEl.style.fontWeight = 'bold';
+                parsedEl.style.color = '#f97316';
             } else {
                 console.warn('[UI] count-parsed element not found');
             }
