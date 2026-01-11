@@ -3604,7 +3604,7 @@ const KrushFlow = {
             mediaRecorder.onstop = async () => {
                 const audioBlob = new Blob(audioChunks, { type: mimeType || 'audio/webm' });
 
-                console.log('[Voice Mapping] Sending audio to OpenAI:', audioBlob.size, 'bytes');
+                console.log('[Voice Mapping] Sending audio for Google STT 3-version comparison:', audioBlob.size, 'bytes');
 
                 try {
                     // Send to server for transcription with protocol comparison data
@@ -3629,48 +3629,59 @@ const KrushFlow = {
                         const transcript = result.transcript.trim().toLowerCase();
                         inputEl.value = transcript;
 
-                        // Display side-by-side protocol comparison if available
-                        if (result.protocolComparison) {
-                            const current = result.protocolComparison.return_current_installed;
-                            const newProto = result.protocolComparison.return_new_googleStt_plus_chatgpt_ambiguity;
-                            const flags = result.protocolComparison.comparisonFlags;
-                            const alternatives = result.alternatives || [];
+                        // Display 3 Google STT versions if available
+                        if (result.sttVersions) {
+                            const v1 = result.sttVersions.googleSttVersion1;
+                            const v2 = result.sttVersions.googleSttVersion2;
+                            const v3 = result.sttVersions.googleSttVersion3;
 
                             let statusHTML = `<div style="font-size: 0.9em;">`;
                             statusHTML += `<div style="margin-bottom: 0.75rem;"><strong>Training alias for:</strong> ${this.escapeHtml(masterItem)}</div>`;
 
-                            // Show both protocol TRANSCRIPTIONS side-by-side
-                            statusHTML += `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.5rem;">`;
+                            // Show 3 Google STT versions side-by-side
+                            statusHTML += `<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem;">`;
 
-                            // Current Protocol (Left) - Shows PRIMARY transcript
+                            // Version 1 (Primary)
                             statusHTML += `<div style="border: 2px solid #3b82f6; padding: 0.75rem; border-radius: 6px; background: rgba(59, 130, 246, 0.05);">`;
-                            statusHTML += `<div style="font-weight: bold; color: #3b82f6; margin-bottom: 0.5rem;">CURRENT PROTOCOL</div>`;
+                            statusHTML += `<div style="font-weight: bold; color: #3b82f6; margin-bottom: 0.5rem; font-size: 0.85rem;">${v1.label}</div>`;
                             statusHTML += `<div style="background: white; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.5rem; border: 1px solid #e5e7eb;">`;
-                            statusHTML += `<div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">What it heard:</div>`;
-                            statusHTML += `<div style="font-weight: 600; color: #1f2937;">"${this.escapeHtml(current.inputUsed.transcript)}"</div>`;
+                            statusHTML += `<div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">Heard:</div>`;
+                            statusHTML += `<div style="font-weight: 600; color: #1f2937; font-size: 0.85rem;">"${this.escapeHtml(v1.transcript)}"</div>`;
                             statusHTML += `</div>`;
-                            statusHTML += `<div style="font-size: 0.85rem; color: #6b7280;">Maps to: <strong>${current.resolution.canonicalItem}</strong></div>`;
+                            statusHTML += `<div style="font-size: 0.8rem; color: #6b7280;">Maps to: <strong>${v1.canonicalItem}</strong></div>`;
+                            statusHTML += `<div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">Value: ${v1.value}</div>`;
                             statusHTML += `</div>`;
 
-                            // New Protocol (Right) - Shows ALTERNATIVES if available
+                            // Version 2 (Alternative 1)
                             statusHTML += `<div style="border: 2px solid #10b981; padding: 0.75rem; border-radius: 6px; background: rgba(16, 185, 129, 0.05);">`;
-                            statusHTML += `<div style="font-weight: bold; color: #10b981; margin-bottom: 0.5rem;">NEW PROTOCOL (Google STT)</div>`;
+                            statusHTML += `<div style="font-weight: bold; color: #10b981; margin-bottom: 0.5rem; font-size: 0.85rem;">${v2.label}</div>`;
                             statusHTML += `<div style="background: white; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.5rem; border: 1px solid #e5e7eb;">`;
-                            statusHTML += `<div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">What it heard:</div>`;
-                            statusHTML += `<div style="font-weight: 600; color: #1f2937;">"${this.escapeHtml(newProto.inputUsed.transcript)}"</div>`;
-                            if (alternatives.length > 0) {
-                                statusHTML += `<div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #e5e7eb;">Alternatives:</div>`;
-                                statusHTML += `<div style="font-size: 0.85rem; color: #374151; margin-top: 0.25rem;">`;
-                                alternatives.forEach((alt, idx) => {
-                                    statusHTML += `<div>• "${this.escapeHtml(alt)}"</div>`;
-                                });
-                                statusHTML += `</div>`;
-                            }
+                            statusHTML += `<div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">Heard:</div>`;
+                            statusHTML += `<div style="font-weight: 600; color: #1f2937; font-size: 0.85rem;">"${this.escapeHtml(v2.transcript)}"</div>`;
                             statusHTML += `</div>`;
-                            statusHTML += `<div style="font-size: 0.85rem; color: #6b7280;">Maps to: <strong>${newProto.resolution.canonicalItem}</strong></div>`;
+                            statusHTML += `<div style="font-size: 0.8rem; color: #6b7280;">Maps to: <strong>${v2.canonicalItem}</strong></div>`;
+                            statusHTML += `<div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">Value: ${v2.value}</div>`;
+                            statusHTML += `</div>`;
+
+                            // Version 3 (Alternative 2)
+                            statusHTML += `<div style="border: 2px solid #f59e0b; padding: 0.75rem; border-radius: 6px; background: rgba(245, 158, 11, 0.05);">`;
+                            statusHTML += `<div style="font-weight: bold; color: #f59e0b; margin-bottom: 0.5rem; font-size: 0.85rem;">${v3.label}</div>`;
+                            statusHTML += `<div style="background: white; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.5rem; border: 1px solid #e5e7eb;">`;
+                            statusHTML += `<div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">Heard:</div>`;
+                            statusHTML += `<div style="font-weight: 600; color: #1f2937; font-size: 0.85rem;">"${this.escapeHtml(v3.transcript)}"</div>`;
+                            statusHTML += `</div>`;
+                            statusHTML += `<div style="font-size: 0.8rem; color: #6b7280;">Maps to: <strong>${v3.canonicalItem}</strong></div>`;
+                            statusHTML += `<div style="font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem;">Value: ${v3.value}</div>`;
                             statusHTML += `</div>`;
 
                             statusHTML += `</div>`; // End grid
+
+                            // Show warning if all versions are the same
+                            if (result.sttVersions.allVersionsSame) {
+                                statusHTML += `<div style="margin-top: 0.5rem; padding: 0.5rem; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 4px; font-size: 0.85rem; color: #92400e;">`;
+                                statusHTML += `⚠️ All versions returned the same transcript`;
+                                statusHTML += `</div>`;
+                            }
 
                             statusHTML += `</div>`;
                             statusEl.innerHTML = statusHTML;
@@ -3680,7 +3691,7 @@ const KrushFlow = {
                         }
 
                         console.log('[Voice Mapping] Transcript:', transcript);
-                        console.log('[Voice Mapping] Protocol Comparison:', result.protocolComparison);
+                        console.log('[Voice Mapping] STT Versions:', result.sttVersions);
                     } else {
                         statusEl.textContent = 'No speech detected';
                     }

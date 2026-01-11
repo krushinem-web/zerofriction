@@ -3,7 +3,6 @@ const multer = require('multer');
 const vision = require('@google-cloud/vision');
 const speech = require('@google-cloud/speech');
 const Anthropic = require('@anthropic-ai/sdk');
-const OpenAI = require('openai');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
@@ -11,7 +10,6 @@ const path = require('path');
 const app = express();
 const upload = multer({ limits: { fileSize: 8 * 1024 * 1024 } });
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Google Cloud Speech Request Queue - prevent simultaneous calls
 class RequestQueue {
@@ -1219,96 +1217,50 @@ function resolveNewProtocol(transcript, alternatives, masterListCandidates, alia
     };
 }
 
-// Side-by-Side Protocol Comparator for Voice Mapping (ALWAYS maps to target item)
-function compareProtocolsForVoiceMapping(chatGptTranscript, googleTranscript, googleAlternatives, targetItem, aliasDictionary, rawAudioMeta) {
-    // In Voice Mapping, we're TRAINING - whatever is said should map to the target item
-    // We compare ChatGPT transcription vs Google STT transcription
+// Google STT 3-Version Comparator for Voice Mapping (shows primary + 2 alternatives)
+function compareGoogleSttVersions(primaryTranscript, alternatives, targetItem, rawAudioMeta) {
+    // In Voice Mapping, we're TRAINING - show 3 different Google STT transcriptions
+    // Version 1: Primary transcript
+    // Version 2: Alternative 1 (if available)
+    // Version 3: Alternative 2 (if available)
 
-    const chatOperation = parseOperation(chatGptTranscript);
-    const chatValue = chatOperation === 'ERASE' ? 0 : extractNumber(chatGptTranscript);
+    const version1 = primaryTranscript || '';
+    const version2 = alternatives[0] || primaryTranscript || '';
+    const version3 = alternatives[1] || alternatives[0] || primaryTranscript || '';
 
-    const googleOperation = parseOperation(googleTranscript);
-    const googleValue = googleOperation === 'ERASE' ? 0 : extractNumber(googleTranscript);
+    const operation1 = parseOperation(version1);
+    const value1 = operation1 === 'ERASE' ? 0 : extractNumber(version1);
 
-    // PROTOCOL 1: Current Installed (ChatGPT/OpenAI)
-    const returnCurrentInstalled = {
-        recording: {
-            endOnPauseRequired: true,
-            vadDetected: rawAudioMeta?.vadPauseMs != null,
-            vadPauseMs: rawAudioMeta?.vadPauseMs || null,
-            vadAssumed: rawAudioMeta?.vadPauseMs == null
-        },
-        inputUsed: {
-            transcript: chatGptTranscript,
-            confidence: null,
-            service: 'ChatGPT/OpenAI'
-        },
-        resolution: {
-            canonicalItem: targetItem,  // ALWAYS the target item in Voice Mapping
-            operation: chatOperation,
-            value: chatValue,
-            confidence: 1.0,  // We're training, so confidence is always 100%
-            needsConfirmation: false,  // No confirmation needed in training mode
-            topChoices: [targetItem, targetItem, targetItem]
-        },
-        alias: {
-            shouldAutoSave: true,  // Always save in Voice Mapping
-            aliasToSave: chatGptTranscript.toLowerCase().trim()
-        }
-    };
+    const operation2 = parseOperation(version2);
+    const value2 = operation2 === 'ERASE' ? 0 : extractNumber(version2);
 
-    // PROTOCOL 2: New (Google STT + alternatives)
-    const returnNewGoogleStt = {
-        recording: {
-            endOnPauseRequired: true,
-            vadDetected: rawAudioMeta?.vadPauseMs != null,
-            vadPauseMs: rawAudioMeta?.vadPauseMs || null,
-            vadAssumed: rawAudioMeta?.vadPauseMs == null,
-            endOfUtteranceMs: rawAudioMeta?.endOfUtteranceMs || null
-        },
-        inputUsed: {
-            transcript: googleTranscript,
-            alternativesUsed: googleAlternatives.slice(0, 3),
-            wordConfidencesPresent: false,
-            service: 'Google Cloud Speech'
-        },
-        resolution: {
-            canonicalItem: targetItem,  // ALWAYS the target item in Voice Mapping
-            operation: googleOperation,
-            value: googleValue,
-            confidence: 1.0,  // We're training, so confidence is always 100%
-            needsConfirmation: false,  // No confirmation needed in training mode
-            topChoices: [targetItem, targetItem, targetItem]
-        },
-        alias: {
-            shouldAutoSave: true,  // Always save in Voice Mapping
-            aliasToSave: googleTranscript.toLowerCase().trim()
-        }
-    };
-
-    // Comparison flags - compare the transcriptions
-    const transcriptsDifferent = chatGptTranscript.toLowerCase().trim() !== googleTranscript.toLowerCase().trim();
-
-    const comparisonFlags = {
-        differentCanonicalItem: false,  // Always the same (target item)
-        differentOperation: chatOperation !== googleOperation,
-        differentValue: chatValue !== googleValue,
-        currentWouldSilentlyCommit: true,  // Both auto-save in Voice Mapping
-        newWouldRequestConfirmation: false,
-        aliasWouldBeSavedInNewButNotCurrent: false,
-        transcriptsDifferent: transcriptsDifferent,
-        notes: [
-            'Voice Mapping mode: Training alias for "' + targetItem + '"',
-            'ChatGPT heard: "' + chatGptTranscript + '"',
-            'Google STT heard: "' + googleTranscript + '"',
-            googleAlternatives.length > 0 ? 'Google alternatives: ' + googleAlternatives.join(', ') : 'No alternatives from Google'
-        ]
-    };
+    const operation3 = parseOperation(version3);
+    const value3 = operation3 === 'ERASE' ? 0 : extractNumber(version3);
 
     return {
-        return_current_installed: returnCurrentInstalled,
-        return_new_googleStt_plus_chatgpt_ambiguity: returnNewGoogleStt,
-        comparisonFlags: comparisonFlags
+        googleSttVersion1: {
+            transcript: version1,
+            canonicalItem: targetItem,
+            operation: operation1,
+            value: value1,
+            label: 'Primary'
+        },
+        googleSttVersion2: {
+            transcript: version2,
+            canonicalItem: targetItem,
+            operation: operation2,
+            value: value2,
+            label: 'Alternative 1'
+        },
+        googleSttVersion3: {
+            transcript: version3,
+            canonicalItem: targetItem,
+            operation: operation3,
+            value: value3,
+            label: 'Alternative 2'
+        },
+        trainingItem: targetItem,
+        allVersionsSame: version1 === version2 && version2 === version3
     };
 }
 
@@ -1694,38 +1646,10 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
         // Fully buffer the uploaded file (already in req.file.buffer via multer)
         console.log(`✅ [${requestId}] Audio buffered and validated`);
 
-        // CALL BOTH SERVICES IN PARALLEL for Voice Mapping comparison
-        console.log(`🔀 [${requestId}] Calling BOTH ChatGPT and Google STT in parallel...`);
+        // Call Google STT for Voice Mapping (get primary + alternatives)
+        console.log(`📥 [${requestId}] Queuing for Google Cloud Speech (Voice Mapping)`);
 
-        const [chatGptResponse, googleSttResponse] = await Promise.all([
-            // ChatGPT/OpenAI Transcription (CURRENT protocol)
-            (async () => {
-                const chatStartTime = Date.now();
-                console.log(`🤖 [${requestId}] Calling ChatGPT/OpenAI...`);
-
-                try {
-                    // Convert audio buffer to File object for OpenAI
-                    const audioFile = new File([req.file.buffer], 'audio.webm', { type: req.file.mimetype });
-
-                    const transcription = await openai.audio.transcriptions.create({
-                        file: audioFile,
-                        model: 'whisper-1',
-                        language: 'en'
-                    });
-
-                    const chatDuration = Date.now() - chatStartTime;
-                    console.log(`✅ [${requestId}] ChatGPT success (${chatDuration}ms): "${transcription.text}"`);
-
-                    return { transcript: transcription.text, service: 'ChatGPT' };
-                } catch (error) {
-                    const chatDuration = Date.now() - chatStartTime;
-                    console.error(`❌ [${requestId}] ChatGPT failed (${chatDuration}ms):`, error.message);
-                    return { transcript: '', service: 'ChatGPT', error: error.message };
-                }
-            })(),
-
-            // Google STT Transcription (NEW protocol)
-            speechQueue.add(async () => {
+        const googleSttResponse = await speechQueue.add(async () => {
             const queueStartTime = Date.now();
             console.log(`🔄 [${requestId}] Start Google Speech call (queued ${queueStartTime - startTime}ms, Voice Mapping)`);
 
@@ -1798,24 +1722,20 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
             }
 
             return { transcript, alternatives, service: 'Google STT' };
-        })
-        ]);
+        });
 
-        // Extract results from both services
-        const chatGptTranscript = chatGptResponse.transcript || '';
+        // Extract Google STT results
         const googleTranscript = googleSttResponse.transcript || '';
         const googleAlternatives = googleSttResponse.alternatives || [];
 
-        console.log(`📊 [${requestId}] COMPARISON RESULTS:`);
-        console.log(`   ChatGPT heard: "${chatGptTranscript}"`);
-        console.log(`   Google STT heard: "${googleTranscript}"`);
-        console.log(`   Google alternatives: ${googleAlternatives.join(', ')}`);
+        console.log(`📊 [${requestId}] Google STT Results:`);
+        console.log(`   Primary: "${googleTranscript}"`);
+        console.log(`   Alternatives: ${googleAlternatives.join(', ')}`);
 
-        // Run protocol comparison
-        let protocolComparison = null;
+        // Generate 3-version comparison for Voice Mapping
+        let sttVersions = null;
         if (targetItem) {
-            // Voice Mapping mode - use special comparator with BOTH transcripts
-            console.log(`🔬 [${requestId}] Running Voice Mapping protocol comparison for "${targetItem}"...`);
+            console.log(`🔬 [${requestId}] Generating 3 Google STT versions for "${targetItem}"...`);
 
             try {
                 const rawAudioMeta = {
@@ -1826,54 +1746,20 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
                     deviceHints: null
                 };
 
-                protocolComparison = compareProtocolsForVoiceMapping(
-                    chatGptTranscript,
+                sttVersions = compareGoogleSttVersions(
                     googleTranscript,
                     googleAlternatives,
                     targetItem,
-                    aliasDictionary,
                     rawAudioMeta
                 );
 
-                console.log(`✅ [${requestId}] Voice Mapping comparison complete`);
-                console.log(`🔬 [${requestId}] ChatGPT → "${targetItem}": ${chatGptTranscript}`);
-                console.log(`🔬 [${requestId}] Google → "${targetItem}": ${googleTranscript}`);
+                console.log(`✅ [${requestId}] Voice Mapping 3-version comparison complete`);
+                console.log(`🔬 [${requestId}] Version 1: "${sttVersions.googleSttVersion1.transcript}"`);
+                console.log(`🔬 [${requestId}] Version 2: "${sttVersions.googleSttVersion2.transcript}"`);
+                console.log(`🔬 [${requestId}] Version 3: "${sttVersions.googleSttVersion3.transcript}"`);
 
             } catch (error) {
-                console.error(`⚠️  [${requestId}] Protocol comparison failed:`, error.message);
-                // Don't fail the whole request if comparison fails
-            }
-        } else if (masterListCandidates && masterListCandidates.length > 0) {
-            // Live Count mode - use Google STT only (regular comparator)
-            console.log(`🔬 [${requestId}] Running side-by-side protocol comparison...`);
-
-            try {
-                const rawAudioMeta = {
-                    sampleRate: 48000,
-                    durationMs: Math.round((req.file.size / 48000) * 1000),
-                    vadPauseMs: null,
-                    noiseLevel: null,
-                    deviceHints: null
-                };
-
-                protocolComparison = compareProtocols(
-                    googleTranscript,
-                    googleAlternatives,
-                    masterListCandidates,
-                    aliasDictionary,
-                    null,
-                    rawAudioMeta
-                );
-
-                console.log(`✅ [${requestId}] Protocol comparison complete`);
-
-                // Log comparison flags
-                if (protocolComparison.comparisonFlags) {
-                    console.log(`🔬 [${requestId}] Comparison: Different item=${protocolComparison.comparisonFlags.differentCanonicalItem}, Different op=${protocolComparison.comparisonFlags.differentOperation}`);
-                }
-
-            } catch (error) {
-                console.error(`⚠️  [${requestId}] Protocol comparison failed:`, error.message);
+                console.error(`⚠️  [${requestId}] Version comparison failed:`, error.message);
                 // Don't fail the whole request if comparison fails
             }
         }
@@ -1884,10 +1770,8 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
         res.json({
             success: true,
             transcript: googleTranscript,  // Primary transcript (Google for UI input)
-            chatGptTranscript: chatGptTranscript,  // ChatGPT transcript
-            googleTranscript: googleTranscript,  // Google transcript
             alternatives: googleAlternatives,  // Google alternatives
-            protocolComparison: protocolComparison
+            sttVersions: sttVersions  // 3-version comparison (Primary, Alternative 1, Alternative 2)
         });
 
     } catch (error) {
@@ -1910,18 +1794,17 @@ app.listen(PORT, () => {
     console.log('');
     console.log('🔐 Environment Configuration Check:');
     console.log('  ANTHROPIC_API_KEY:', process.env.ANTHROPIC_API_KEY ? `✅ Set (${process.env.ANTHROPIC_API_KEY.substring(0, 15)}...)` : '❌ NOT SET');
-    console.log('  OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? `✅ Set (${process.env.OPENAI_API_KEY.substring(0, 15)}...)` : '❌ NOT SET');
     console.log('  GOOGLE_CREDS:', process.env.GOOGLE_CREDS ? '✅ Set' : '⚠️  Not set (uses default auth)');
     console.log('');
     console.log('📍 Active Audio Routes:');
     console.log('  POST /audio/transcribe-live-count → Google Cloud Speech + Side-by-Side Protocol Comparison');
-    console.log('  POST /audio/transcribe-mapping → ChatGPT vs Google STT (DUAL TRANSCRIPTION)');
+    console.log('  POST /audio/transcribe-mapping → Google STT 3-Version Comparison (Primary + 2 Alternatives)');
     console.log('');
     console.log('📍 Command Parsing Routes:');
     console.log('  POST /live-count/parse-command → Constrained Intent Resolution (Claude API)');
     console.log('');
     console.log('🔧 Request Queue: Active (prevents simultaneous Speech API calls)');
-    console.log('🔬 Voice Mapping: Calls BOTH ChatGPT & Google STT in parallel for comparison');
-    console.log('🔬 Protocol Comparison: Implemented directly (no file reading)');
+    console.log('🔬 Voice Mapping: Shows 3 Google STT versions (Primary, Alternative 1, Alternative 2)');
+    console.log('🔬 Protocol Comparison: Google STT alternatives only');
     console.log('');
 });
