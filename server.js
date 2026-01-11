@@ -1627,6 +1627,7 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
         const masterListCandidates = req.body.masterListCandidates ? JSON.parse(req.body.masterListCandidates) : null;
         const aliasDictionary = req.body.aliasDictionary ? JSON.parse(req.body.aliasDictionary) : {};
         const targetItem = req.body.targetItem || null;
+        const projectName = req.body.projectName || null;
 
         console.log(`📊 [${requestId}] Audio: ${req.file.size} bytes, ${req.file.mimetype}`);
         console.log(`📋 [${requestId}] Master list: ${masterListCandidates ? masterListCandidates.length : 0} items`);
@@ -1763,6 +1764,69 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
             }
         }
 
+        // AUTO-SAVE: Automatically save all 3 STT alternatives as aliases
+        let newlyAddedAliases = [];
+        if (projectName && targetItem && googleTranscript) {
+            try {
+                console.log(`💾 [${requestId}] Auto-saving 3 STT alternatives as aliases for "${targetItem}"...`);
+
+                // Collect all 3 transcripts (primary + 2 alternatives)
+                const allTranscripts = [
+                    googleTranscript,
+                    ...(googleAlternatives || [])
+                ].filter(t => t && t.trim());
+
+                // Normalize each transcript (lowercase, trim)
+                const normalizedTranscripts = allTranscripts.map(t => t.toLowerCase().trim());
+
+                // Load existing aliases
+                const projectDir = path.join(DATA_DIR, projectName.replace(/\s+/g, '_'));
+                if (!fs.existsSync(projectDir)) {
+                    fs.mkdirSync(projectDir, { recursive: true });
+                }
+
+                const aliasesPath = path.join(projectDir, 'aliases.json');
+                let existingAliases = {};
+                if (fs.existsSync(aliasesPath)) {
+                    const data = JSON.parse(fs.readFileSync(aliasesPath, 'utf8'));
+                    existingAliases = data.aliases || {};
+                }
+
+                // Initialize target item's aliases array if it doesn't exist
+                if (!existingAliases[targetItem]) {
+                    existingAliases[targetItem] = [];
+                }
+
+                // Add new aliases (avoid duplicates)
+                normalizedTranscripts.forEach(normalized => {
+                    if (!existingAliases[targetItem].includes(normalized)) {
+                        existingAliases[targetItem].push(normalized);
+                        newlyAddedAliases.push(normalized);
+                        console.log(`   ✅ Added: "${normalized}"`);
+                    } else {
+                        console.log(`   ⏭️  Skipped (duplicate): "${normalized}"`);
+                    }
+                });
+
+                // Save updated aliases
+                if (newlyAddedAliases.length > 0) {
+                    const aliasData = {
+                        projectName,
+                        aliases: existingAliases,
+                        updatedAt: new Date().toISOString()
+                    };
+                    fs.writeFileSync(aliasesPath, JSON.stringify(aliasData, null, 2));
+                    console.log(`💾 [${requestId}] Saved ${newlyAddedAliases.length} new aliases for "${targetItem}"`);
+                } else {
+                    console.log(`💾 [${requestId}] No new aliases to save (all were duplicates)`);
+                }
+
+            } catch (aliasError) {
+                console.error(`⚠️  [${requestId}] Auto-save aliases failed:`, aliasError.message);
+                // Don't fail the whole request if alias save fails
+            }
+        }
+
         const totalDuration = Date.now() - startTime;
         console.log(`✅ [${requestId}] Complete: ${totalDuration}ms total (Voice Mapping)`);
 
@@ -1770,7 +1834,9 @@ app.post('/audio/transcribe-mapping', upload.single('audio'), async (req, res) =
             success: true,
             transcript: googleTranscript,  // Primary transcript (Google for UI input)
             alternatives: googleAlternatives,  // Google alternatives
-            sttVersions: sttVersions  // 3-version comparison (Primary, Alternative 1, Alternative 2)
+            sttVersions: sttVersions,  // 3-version comparison (Primary, Alternative 1, Alternative 2)
+            newlyAddedAliases: newlyAddedAliases,  // Aliases added in this request
+            targetItem: targetItem  // Echo back the target item
         });
 
     } catch (error) {

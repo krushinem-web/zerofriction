@@ -1640,6 +1640,7 @@ const KrushFlow = {
     selectedVoiceProject: null,
     voiceMappingMasterList: [],
     voiceMappingAliases: {},
+    sessionAddedAliases: {}, // Track aliases added during current session (for post-session review)
 
     // Live Count State
     countingItems: [],  // Matched items from alignment
@@ -3514,6 +3515,7 @@ const KrushFlow = {
             }
 
             this.voiceMappingAliases = aliases;
+            this.sessionAddedAliases = {}; // Clear session tracking for new project
 
             // Render the voice mapping interface
             this.renderVoiceMappingItems();
@@ -3564,15 +3566,9 @@ const KrushFlow = {
                         ` : ''}
 
                         <div class="add-alias-section">
-                            <button class="mic-button" id="mic-${idx}" onclick="KrushFlow.recordAlias(${idx}, '${this.escapeHtml(masterItem)}')" title="Record voice alias">
-                                🎤
+                            <button class="mic-button" id="mic-${idx}" onclick="KrushFlow.recordAlias(${idx}, '${this.escapeHtml(masterItem)}')" title="Record voice alias (auto-saves 3 alternatives)">
+                                🎤 Record Alias
                             </button>
-                            <input type="text"
-                                   class="alias-input"
-                                   id="alias-input-${idx}"
-                                   placeholder="Type or speak an alias..."
-                                   onkeydown="if(event.key==='Enter')KrushFlow.addAlias(${idx}, '${this.escapeHtml(masterItem)}')">
-                            <button class="small-btn" onclick="KrushFlow.addAlias(${idx}, '${this.escapeHtml(masterItem)}')">Add</button>
                         </div>
                         <div class="voice-status" id="voice-status-${idx}"></div>
                     </div>
@@ -3625,6 +3621,7 @@ const KrushFlow = {
                     formData.append('masterListCandidates', JSON.stringify(this.voiceMappingMasterList || []));
                     formData.append('aliasDictionary', JSON.stringify(this.voiceMappingAliases || {}));
                     formData.append('targetItem', masterItem);
+                    formData.append('projectName', this.selectedVoiceProject); // For auto-save aliases
 
                     const response = await fetch('/audio/transcribe-mapping', {
                         method: 'POST',
@@ -3639,7 +3636,28 @@ const KrushFlow = {
 
                     if (result.success && result.transcript) {
                         const transcript = result.transcript.trim().toLowerCase();
-                        inputEl.value = transcript;
+
+                        // Track newly added aliases in session
+                        if (result.newlyAddedAliases && result.newlyAddedAliases.length > 0) {
+                            if (!this.sessionAddedAliases[masterItem]) {
+                                this.sessionAddedAliases[masterItem] = [];
+                            }
+                            result.newlyAddedAliases.forEach(alias => {
+                                if (!this.sessionAddedAliases[masterItem].includes(alias)) {
+                                    this.sessionAddedAliases[masterItem].push(alias);
+                                }
+                                // Also update the main aliases object for real-time display
+                                if (!this.voiceMappingAliases[masterItem]) {
+                                    this.voiceMappingAliases[masterItem] = [];
+                                }
+                                if (!this.voiceMappingAliases[masterItem].includes(alias)) {
+                                    this.voiceMappingAliases[masterItem].push(alias);
+                                }
+                            });
+
+                            // Re-render to show new aliases
+                            this.renderVoiceMappingItems();
+                        }
 
                         // Display 3 Google STT versions if available
                         if (result.sttVersions) {
@@ -3695,6 +3713,18 @@ const KrushFlow = {
                                 statusHTML += `</div>`;
                             }
 
+                            // Show auto-saved aliases feedback
+                            if (result.newlyAddedAliases && result.newlyAddedAliases.length > 0) {
+                                statusHTML += `<div style="margin-top: 0.5rem; padding: 0.75rem; background: #dcfce7; border: 1px solid #10b981; border-radius: 4px; font-size: 0.85rem; color: #065f46;">`;
+                                statusHTML += `✅ Auto-saved ${result.newlyAddedAliases.length} alias${result.newlyAddedAliases.length > 1 ? 'es' : ''}: `;
+                                statusHTML += `<strong>${result.newlyAddedAliases.map(a => '"' + this.escapeHtml(a) + '"').join(', ')}</strong>`;
+                                statusHTML += `</div>`;
+                            } else {
+                                statusHTML += `<div style="margin-top: 0.5rem; padding: 0.5rem; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem; color: #6b7280;">`;
+                                statusHTML += `ℹ️ No new aliases added (all were duplicates)`;
+                                statusHTML += `</div>`;
+                            }
+
                             statusHTML += `</div>`;
                             statusEl.innerHTML = statusHTML;
                         } else {
@@ -3739,36 +3769,6 @@ const KrushFlow = {
         }
     },
 
-    addAlias: function(idx, masterItem) {
-        const inputEl = document.getElementById(`alias-input-${idx}`);
-        const alias = inputEl.value.trim().toLowerCase();
-
-        if (!alias) {
-            alert('Please enter or record an alias');
-            return;
-        }
-
-        // Initialize aliases array if needed
-        if (!this.voiceMappingAliases[masterItem]) {
-            this.voiceMappingAliases[masterItem] = [];
-        }
-
-        // Check if alias already exists
-        if (this.voiceMappingAliases[masterItem].includes(alias)) {
-            alert('This alias already exists');
-            return;
-        }
-
-        // Add the alias
-        this.voiceMappingAliases[masterItem].push(alias);
-
-        // Clear input and re-render
-        inputEl.value = '';
-        const statusEl = document.getElementById(`voice-status-${idx}`);
-        if (statusEl) statusEl.textContent = '';
-
-        this.renderVoiceMappingItems();
-    },
 
     removeAlias: function(masterItem, alias) {
         if (!this.voiceMappingAliases[masterItem]) return;
@@ -3789,26 +3789,137 @@ const KrushFlow = {
             return;
         }
 
+        // Count session-added aliases
+        const sessionAliasCount = Object.keys(this.sessionAddedAliases).reduce((total, item) => {
+            return total + (this.sessionAddedAliases[item] || []).length;
+        }, 0);
+
+        if (sessionAliasCount > 0) {
+            // Show review modal for session-added aliases
+            this.showAliasReviewModal();
+        } else {
+            // No new aliases this session, just finalize
+            alert('No new aliases were added this session. All aliases are already saved.');
+            this.goHome();
+        }
+    },
+
+    showAliasReviewModal: function() {
+        // Create modal overlay
+        const modal = document.createElement('div');
+        modal.id = 'alias-review-modal';
+        modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem;';
+
+        let modalHTML = `
+            <div style="background: white; border-radius: 1rem; max-width: 600px; width: 100%; max-height: 80vh; overflow-y: auto; padding: 2rem; box-shadow: 0 20px 50px rgba(0,0,0,0.3);">
+                <h2 style="margin: 0 0 1rem 0; color: #1f2937;">Review Auto-Saved Aliases</h2>
+                <p style="color: #6b7280; margin-bottom: 1.5rem;">These aliases were automatically saved during this Voice Mapping session. You can remove any before finalizing.</p>
+                <div style="max-height: 400px; overflow-y: auto; margin-bottom: 1.5rem;">
+        `;
+
+        // Display aliases by item
+        Object.keys(this.sessionAddedAliases).forEach(item => {
+            const aliases = this.sessionAddedAliases[item] || [];
+            if (aliases.length > 0) {
+                modalHTML += `
+                    <div style="margin-bottom: 1.5rem; padding: 1rem; background: #f9fafb; border-radius: 0.5rem;">
+                        <div style="font-weight: 600; color: #1f2937; margin-bottom: 0.75rem;">${this.escapeHtml(item)}</div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                `;
+
+                aliases.forEach(alias => {
+                    modalHTML += `
+                        <span style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: white; border: 1px solid #e5e7eb; border-radius: 0.5rem; font-size: 0.9rem;">
+                            <span>${this.escapeHtml(alias)}</span>
+                            <button onclick="KrushFlow.removeSessionAlias('${this.escapeHtml(item)}', '${this.escapeHtml(alias)}')"
+                                    style="background: #ef4444; color: white; border: none; border-radius: 0.25rem; padding: 0.125rem 0.5rem; cursor: pointer; font-size: 0.75rem;">
+                                Remove
+                            </button>
+                        </span>
+                    `;
+                });
+
+                modalHTML += `
+                        </div>
+                    </div>
+                `;
+            }
+        });
+
+        modalHTML += `
+                </div>
+                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button onclick="KrushFlow.cancelAliasReview()"
+                            style="padding: 0.75rem 1.5rem; background: #6b7280; color: white; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer;">
+                        Cancel
+                    </button>
+                    <button onclick="KrushFlow.finalizeAliases()"
+                            style="padding: 0.75rem 1.5rem; background: #f97316; color: white; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer;">
+                        Finalize & Save
+                    </button>
+                </div>
+            </div>
+        `;
+
+        modal.innerHTML = modalHTML;
+        document.body.appendChild(modal);
+    },
+
+    removeSessionAlias: async function(item, alias) {
+        // Remove from session tracking
+        if (this.sessionAddedAliases[item]) {
+            this.sessionAddedAliases[item] = this.sessionAddedAliases[item].filter(a => a !== alias);
+            if (this.sessionAddedAliases[item].length === 0) {
+                delete this.sessionAddedAliases[item];
+            }
+        }
+
+        // Remove from main aliases object
+        if (this.voiceMappingAliases[item]) {
+            this.voiceMappingAliases[item] = this.voiceMappingAliases[item].filter(a => a !== alias);
+        }
+
+        // Update server immediately
         try {
-            const response = await fetch(`/projects/${encodeURIComponent(this.selectedVoiceProject)}/aliases`, {
+            await fetch(`/projects/${encodeURIComponent(this.selectedVoiceProject)}/aliases`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     aliases: this.voiceMappingAliases
                 })
             });
-
-            if (!response.ok) {
-                throw new Error('Failed to save aliases');
-            }
-
-            const data = await response.json();
-            alert(`Saved ${data.aliasCount} voice mappings successfully!`);
-
         } catch (error) {
-            console.error('Failed to save aliases:', error);
-            alert('Failed to save aliases: ' + error.message);
+            console.error('Failed to update aliases after removal:', error);
         }
+
+        // Refresh modal
+        const modal = document.getElementById('alias-review-modal');
+        if (modal) {
+            modal.remove();
+            this.showAliasReviewModal();
+        }
+    },
+
+    cancelAliasReview: function() {
+        const modal = document.getElementById('alias-review-modal');
+        if (modal) {
+            modal.remove();
+        }
+    },
+
+    finalizeAliases: async function() {
+        const modal = document.getElementById('alias-review-modal');
+        if (modal) {
+            modal.remove();
+        }
+
+        // Count remaining session aliases
+        const remainingCount = Object.keys(this.sessionAddedAliases).reduce((total, item) => {
+            return total + (this.sessionAddedAliases[item] || []).length;
+        }, 0);
+
+        alert(`Voice Mapping completed! ${remainingCount} alias${remainingCount !== 1 ? 'es' : ''} finalized.`);
+        this.goHome();
     },
 
     // Helper: Save aliases to server programmatically (for auto-learning)
